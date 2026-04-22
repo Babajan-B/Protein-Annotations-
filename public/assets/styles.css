@@ -1973,6 +1973,36 @@ code {
 
 .viewer-panel .panel-heading { margin-bottom: 16px; }
 
+.structure-overview-panel {
+  margin-bottom: 18px;
+}
+
+.structure-jump-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.structure-jump-links a {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.structure-jump-links a:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .viewer-toggle-bar {
   display: flex;
   gap: 8px;

@@ -172,6 +172,51 @@
      accessibility, structural verdict, stability, AlphaFold pLDDT,
      experimental PDB structures, interactive 3D viewer             #}
 
+  <section class="panel structure-overview-panel">
+    <div class="panel-heading">
+      <h2>Structure Overview <span class="annot-badge annot-badge-str">Guide</span></h2>
+      <p>Start here to understand what structural evidence is available for this variant, then jump directly to the relevant panel.</p>
+    </div>
+    <div class="count-grid">
+      <article class="count-card">
+        <span class="count-value">{% if report.alphafold_panel and report.alphafold_panel.plddt_available %}Yes{% else %}No{% endif %}</span>
+        <span class="count-label">AlphaFold residue-confidence track</span>
+      </article>
+      <article class="count-card">
+        <span class="count-value">{% if report.pdb_panel %}{{ report.pdb_panel.total_count }}{% else %}0{% endif %}</span>
+        <span class="count-label">Experimental PDB structures</span>
+      </article>
+      <article class="count-card">
+        <span class="count-value">{% if report.secondary_structure_panel %}Yes{% else %}No{% endif %}</span>
+        <span class="count-label">Secondary structure assignment</span>
+      </article>
+      <article class="count-card">
+        <span class="count-value">{% if report.accessibility_panel %}Yes{% else %}No{% endif %}</span>
+        <span class="count-label">Solvent accessibility profile</span>
+      </article>
+    </div>
+    <div class="structure-jump-links">
+      {% if report.alphafold_panel %}
+        <a href="#sec-alphafold">AlphaFold confidence</a>
+      {% endif %}
+      {% if report.pdb_panel %}
+        <a href="#sec-pdb">Experimental PDB</a>
+      {% endif %}
+      {% if report.alphafold_panel or report.pdb_panel %}
+        <a href="#sec-3d-viewer">3D viewer</a>
+      {% endif %}
+      {% if report.secondary_structure_panel %}
+        <a href="#sec-structure">Secondary structure</a>
+      {% endif %}
+      {% if report.accessibility_panel %}
+        <a href="#sec-rsa">RSA / ASA</a>
+      {% endif %}
+      {% if report.stability_panel %}
+        <a href="#sec-stability">Stability</a>
+      {% endif %}
+    </div>
+  </section>
+
   {% if report.secondary_structure_panel %}
     <section class="panel structure-panel saveable-panel" id="sec-structure" data-panel-title="Secondary Structure">
       <div class="panel-heading">
@@ -881,7 +926,7 @@
   {# 3D Protein Structure Viewer                                         #}
   {# ------------------------------------------------------------------ #}
   {% if report.alphafold_panel or report.pdb_panel %}
-    <section class="panel viewer-panel">
+    <section class="panel viewer-panel" id="sec-3d-viewer">
       <div class="panel-heading">
         <h2>Interactive 3D structure viewer <span class="annot-badge annot-badge-str">Structural</span></h2>
         <p>Explore the protein structure directly in the browser. AlphaFold model is coloured by pLDDT confidence (blue = high, red = low). The variant residue is highlighted as a red sphere.</p>
@@ -943,14 +988,34 @@
           {% endif %}
 
           var viewer = null;
+          var viewerInitialized = false;
 
           function initViewer() {
-            if (typeof $3Dmol === "undefined") { return; }
+            if (viewerInitialized || typeof $3Dmol === "undefined") { return; }
             viewer = $3Dmol.createViewer("mol-viewer", { backgroundColor: "white" });
+            viewerInitialized = true;
             if (afPdbUrl) {
               loadAlphaFold();
             } else if (bestPdbId) {
               loadPdbEntry(bestPdbId);
+            }
+          }
+
+          function ensureViewerVisibleAndSized() {
+            var structuralPanel = document.getElementById("tabpanel-str");
+            if (!structuralPanel || structuralPanel.classList.contains("hidden")) {
+              return;
+            }
+            if (!viewerInitialized) {
+              initViewer();
+            }
+            if (viewer) {
+              setTimeout(function () {
+                try {
+                  viewer.resize();
+                  viewer.render();
+                } catch (_err) {}
+              }, 80);
             }
           }
 
@@ -1011,10 +1076,25 @@
             });
           }
 
+          document.addEventListener("report-tab-activated", function (event) {
+            if (event.detail && event.detail.tab === "str") {
+              ensureViewerVisibleAndSized();
+            }
+          });
+
+          window.addEventListener("resize", function () {
+            if (viewer && !document.getElementById("tabpanel-str").classList.contains("hidden")) {
+              try {
+                viewer.resize();
+                viewer.render();
+              } catch (_err) {}
+            }
+          });
+
           if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", function () { setTimeout(initViewer, 100); });
+            document.addEventListener("DOMContentLoaded", function () { setTimeout(ensureViewerVisibleAndSized, 100); });
           } else {
-            setTimeout(initViewer, 100);
+            setTimeout(ensureViewerVisibleAndSized, 100);
           }
         }());
       </script>
@@ -1603,6 +1683,7 @@
           const active = panel.id === "tabpanel-" + key;
           panel.classList.toggle("hidden", !active);
         });
+        document.dispatchEvent(new CustomEvent("report-tab-activated", { detail: { tab: key } }));
       }
 
       tabBtns.forEach(function (btn) {
