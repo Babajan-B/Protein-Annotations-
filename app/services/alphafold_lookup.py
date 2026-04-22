@@ -59,6 +59,7 @@ class AlphaFoldLookup:
         panel: dict[str, Any] = {
             "entry_id": meta.get("entryId", ""),
             "viewer_url": f"{_VIEWER_BASE}/{base_accession}",
+            "pdb_url": meta.get("pdbUrl", ""),
             "model_date": meta.get("modelCreatedDate", ""),
             "uniprot_start": meta.get("uniprotStart", 1),
             "uniprot_end": meta.get("uniprotEnd", sequence_length),

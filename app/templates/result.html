@@ -931,7 +931,7 @@
           var variantPosition = {{ report.variant.position }};
           {% if report.alphafold_panel and report.alphafold_panel.entry_id %}
           var afEntryId = "{{ report.alphafold_panel.entry_id }}";
-          var afPdbUrl = "https://files.alphafold.ebi.ac.uk/files/" + afEntryId + "-model_v4.pdb";
+          var afPdbUrl = {{ report.alphafold_panel.pdb_url|tojson }};
           {% else %}
           var afEntryId = null;
           var afPdbUrl = null;
@@ -958,8 +958,14 @@
             if (!viewer || !afPdbUrl) { return; }
             setActiveBtn("btn-af");
             viewer.clear();
-            jQuery.ajax(afPdbUrl, {
-              success: function (data) {
+            fetch(afPdbUrl)
+              .then(function (response) {
+                if (!response.ok) {
+                  throw new Error("AlphaFold structure request failed with HTTP " + response.status);
+                }
+                return response.text();
+              })
+              .then(function (data) {
                 viewer.addModel(data, "pdb");
                 viewer.setStyle({}, {
                   cartoon: {
@@ -977,12 +983,11 @@
                 });
                 viewer.zoomTo();
                 viewer.render();
-              },
-              error: function () {
+              })
+              .catch(function () {
                 document.getElementById("mol-viewer").innerHTML =
-                  '<p style="text-align:center;padding:40px;color:#888;">Could not load AlphaFold PDB file. Try the <a href="' + afPdbUrl + '" target="_blank">direct link</a>.</p>';
-              }
-            });
+                  '<p style="text-align:center;padding:40px;color:#888;">Could not load AlphaFold PDB file. Try the <a href="' + afPdbUrl + '" target="_blank" rel="noopener">direct link</a>.</p>';
+              });
           };
 
           window.loadPdbEntry = function (pdbId) {
