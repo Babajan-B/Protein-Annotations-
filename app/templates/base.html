@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Protein Mutation Workbench{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('main.favicon') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://3Dmol.org/build/3Dmol-min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="page-header">
+        <p class="eyebrow">Academic Human Protein Analysis</p>
+        <h1>Protein Mutation Workbench</h1>
+        <p class="lede">
+          Resolve a human protein, validate a missense substitution, and prepare the figures,
+          plots, and tables needed for sequence-first interpretation.
+        </p>
+      </header>
+      <main class="page-content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,1742 @@
+{% extends "base.html" %}
+
+{% block title %}Analysis Result{% endblock %}
+
+{% block content %}
+
+  {# ── Hero header card ─────────────────────────────────────────── #}
+  <div class="report-hero" id="sec-target">
+    <div class="report-hero-left">
+      <p class="report-hero-eyebrow">Missense Variant Report</p>
+      <h1 class="report-hero-title">
+        {{ report.protein.gene_symbol or report.protein.entry_name }}
+        <span class="report-hero-variant">{{ report.variant.short_notation }}</span>
+      </h1>
+      <p class="report-hero-subtitle">
+        {{ report.protein.protein_name }} ·
+        <a href="https://www.uniprot.org/uniprot/{{ report.protein.accession }}" target="_blank" rel="noopener">
+          {{ report.protein.accession }}
+        </a> ·
+        {{ report.protein.length }} aa ·
+        <em>{{ report.protein.organism_name }}</em>
+      </p>
+      <div class="report-hero-pills">
+        <span class="hero-pill">{{ report.variant.wild_type }} → {{ report.variant.mutant }}</span>
+        <span class="hero-pill">Position {{ report.variant.position }}</span>
+        <span class="hero-pill">{{ report.variant.hgvs_protein }}</span>
+        {% if report.stability_panel %}
+          <span class="hero-pill hero-pill-{{ report.stability_panel.ddg_class }}">
+            ΔΔG {{ "%+.2f"|format(report.stability_panel.ddg_estimate) }} kcal/mol
+          </span>
+        {% endif %}
+        {% if report.alphafold_panel and report.alphafold_panel.mean_plddt is defined %}
+          <span class="hero-pill">pLDDT {{ report.alphafold_panel.mean_plddt }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="report-hero-actions">
+      <div class="export-group">
+        <p class="export-group-label">Download</p>
+        <a class="export-btn export-btn-primary" href="{{ url_for('main.report_pdf', **query_args) }}">
+          📄 PDF Report
+        </a>
+        <a class="export-btn export-btn-primary" href="{{ url_for('main.report_bundle_zip', **query_args) }}">
+          📦 Full Bundle
+        </a>
+        <a class="export-btn" href="{{ url_for('main.report_docx', **query_args) }}">Word</a>
+        <a class="export-btn" href="{{ url_for('main.report_json', **query_args) }}">JSON</a>
+        <a class="export-btn" href="{{ url_for('main.report_csv', **query_args) }}">CSV</a>
+        {% if report.secondary_structure_panel %}
+          <a class="export-btn" href="{{ url_for('main.structure_annotations_csv', **query_args) }}">Structure CSV</a>
+        {% endif %}
+        {% if report.phylogenetic_panel %}
+          <a class="export-btn" href="{{ url_for('main.phylogeny_newick', **query_args) }}">Newick</a>
+        {% endif %}
+      </div>
+      <a class="edit-query-link" href="{{ url_for('main.index', **query_args) }}">← Edit query</a>
+    </div>
+  </div>
+
+  {# ── Quick-stats summary row ───────────────────────────────────── #}
+  <div class="quickstats-row">
+    {% for card in report.summary_cards %}
+      <div class="quickstat-card">
+        <span class="quickstat-label">{{ card.label }}</span>
+        <span class="quickstat-value">{{ card.value }}</span>
+      </div>
+    {% endfor %}
+  </div>
+
+  {# ── Tab bar ──────────────────────────────────────────────────── #}
+  <div class="report-tab-bar" id="report-tab-bar" role="tablist">
+    <button class="report-tab active" id="tab-seq" role="tab" aria-selected="true" aria-controls="tabpanel-seq" data-tab="seq">
+      🧬 Sequence Annotations
+    </button>
+    <button class="report-tab" id="tab-str" role="tab" aria-selected="false" aria-controls="tabpanel-str" data-tab="str">
+      🦴 Structural Annotations
+    </button>
+    <button class="report-tab" id="tab-dis" role="tab" aria-selected="false" aria-controls="tabpanel-dis" data-tab="dis">
+      📊 Disease &amp; Function
+    </button>
+    <button class="report-tab report-tab-action" id="tab-download-all" data-action="download-all" title="Download all panels as images + data files">
+      📥 Download All
+    </button>
+  </div>
+
+  {# Resolved target detail — compact two-column card #}
+  <section class="panel target-detail-card">
+    <div class="target-detail-grid">
+      <div>
+        <h3 class="target-detail-h3">Protein</h3>
+        <dl class="target-dl">
+          <dt>Accession</dt><dd>{{ report.protein.accession }}</dd>
+          <dt>Entry</dt><dd>{{ report.protein.entry_name }}</dd>
+          <dt>Gene</dt><dd>{{ report.protein.gene_symbol or "—" }}</dd>
+          <dt>Aliases</dt><dd>{{ report.protein.synonyms[:3]|join(", ") if report.protein.synonyms else "—" }}</dd>
+          <dt>RefSeq</dt><dd>{{ report.protein.refseq_proteins[:2]|join(", ") if report.protein.refseq_proteins else "—" }}</dd>
+        </dl>
+      </div>
+      <div>
+        <h3 class="target-detail-h3">Variant</h3>
+        <dl class="target-dl">
+          <dt>Submitted</dt><dd>{{ report.variant.original_text }}</dd>
+          <dt>Normalized</dt><dd>{{ report.variant.short_notation }}</dd>
+          <dt>HGVS protein</dt><dd>{{ report.variant.hgvs_protein }}</dd>
+          <dt>Change</dt><dd>{{ report.variant.wild_type }} → {{ report.variant.mutant }} at position {{ report.variant.position }}</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  {# ── TAB PANEL A: Sequence ─────────────────────────────────────── #}
+  <div class="report-tabpanel" id="tabpanel-seq" role="tabpanel" aria-labelledby="tab-seq">
+  {# ── SECTION A ─────────────────────────────────────────────────── #}
+  <div class="report-section-divider section-sequence">
+    <h2>&#x1F9EC; Section A — Sequence-Level Annotations</h2>
+  </div>
+  {# Sequence annotations: architecture, conservation, phylogeny,
+     chromosome location, residue context, physicochemical metrics,
+     evidence, feature tables, Protein Atlas, Open Targets          #}
+
+  {% if report.architecture_rows %}
+    <section class="panel saveable-panel" id="sec-architecture" data-panel-title="Protein Architecture">
+      <div class="panel-heading">
+        <h2>Protein architecture <span class="annot-badge annot-badge-seq">Sequence</span></h2>
+        <p>Predictor-derived interval features are grouped into track rows and aligned to the submitted variant position.</p>
+      </div>
+      {% if report.notices %}
+        <div class="alert alert-note">
+          {% for notice in report.notices[:3] %}
+            <p>{{ notice }}</p>
+          {% endfor %}
+        </div>
+      {% endif %}
+      <div class="architecture-board">
+        {% for row in report.architecture_rows %}
+          <div class="architecture-row">
+            <div class="architecture-label">{{ row.label }}</div>
+            <div class="architecture-track">
+              <div class="architecture-baseline"></div>
+              <div class="architecture-variant" style="left: {{ row.variant_pct }}%;"></div>
+              {% for segment in row.segments %}
+                <div
+                  class="architecture-segment"
+                  style="left: {{ segment.left_pct }}%; width: {{ segment.width_pct }}%; background: {{ segment.color }};"
+                  title="{{ segment.label }} ({{ segment.start }}-{{ segment.end }})"
+                ></div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="count-grid">
+        {% for row in report.feature_counts %}
+          <article class="count-card">
+            <span class="count-value">{{ row.count }}</span>
+            <span class="count-label">{{ row.label }}</span>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  </div>{# /tabpanel-seq #}
+
+  {# ── TAB PANEL B: Structural ───────────────────────────────────── #}
+  <div class="report-tabpanel hidden" id="tabpanel-str" role="tabpanel" aria-labelledby="tab-str">
+  {# ── SECTION B ─────────────────────────────────────────────────── #}
+  <div class="report-section-divider section-structural">
+    <h2>&#x1F9B4; Section B — Structural Annotations</h2>
+  </div>
+  {# Structural annotations: predicted secondary structure, solvent
+     accessibility, structural verdict, stability, AlphaFold pLDDT,
+     experimental PDB structures, interactive 3D viewer             #}
+
+  {% if report.secondary_structure_panel %}
+    <section class="panel structure-panel saveable-panel" id="sec-structure" data-panel-title="Secondary Structure">
+      <div class="panel-heading">
+        <h2>Secondary structure annotation <span class="annot-badge annot-badge-str">Structural</span></h2>
+        <p>PSIPRED is now rendered as a residue-aware structural summary with explicit amino acids, positions, segment calls, and site-level confidence.</p>
+      </div>
+      <div class="structure-hero">
+        <article class="structure-spotlight state-{{ report.secondary_structure_panel.variant_row.class_name }}">
+          <p class="structure-kicker">Variant-site call</p>
+          <h3>{{ report.variant.wild_type }}{{ report.variant.position }}{{ report.variant.mutant }} in {{ report.secondary_structure_panel.variant_row.state }}</h3>
+          <p class="structure-lede">
+            Residue {{ report.secondary_structure_panel.variant_row.position }} is {{ report.secondary_structure_panel.variant_row.aa }}
+            in the resolved sequence and is predicted as {{ report.secondary_structure_panel.variant_row.state|lower }}
+            with {{ report.secondary_structure_panel.variant_row.confidence_pct }}% confidence.
+          </p>
+          <div class="probability-grid">
+            {% for item in report.secondary_structure_panel.probability_cards %}
+              <div class="probability-card state-{{ item.class_name }}">
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}%</strong>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+        <div class="structure-summary">
+          <div class="structure-count-grid">
+            {% for card in report.secondary_structure_panel.state_cards %}
+              <article class="state-summary-card state-{{ card.class_name }}">
+                <span class="state-code">{{ card.code }}</span>
+                <strong>{{ card.label }}</strong>
+                <span>{{ card.count }} residues</span>
+                <small>{{ card.percent }}%</small>
+              </article>
+            {% endfor %}
+            <article class="state-summary-card state-neutral">
+              <span class="state-code">*</span>
+              <strong>Mean confidence</strong>
+              <span>{{ report.secondary_structure_panel.mean_confidence }}</span>
+              <small>Across all residues</small>
+            </article>
+          </div>
+        </div>
+      </div>
+      <div class="structure-strip">
+        <div class="structure-strip-header">
+          <span>Residue 1</span>
+          <span>Secondary-structure map</span>
+          <span>Residue {{ report.protein.length }}</span>
+        </div>
+        <div class="structure-strip-track">
+          <div class="structure-variant-marker" style="left: {{ report.secondary_structure_panel.variant_pct }}%;"></div>
+          {% for segment in report.secondary_structure_panel.segments %}
+            <div
+              class="structure-segment state-{{ segment.class_name }}"
+              style="left: {{ segment.left_pct }}%; width: {{ segment.width_pct }}%;"
+              title="{{ segment.label }} {{ segment.start }}-{{ segment.end }}"
+            >
+              {% if segment.width_pct > 7 %}
+                <span>{{ segment.state_code }}</span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      {# PDBsum-style secondary structure diagram #}
+      <div class="panel-heading compact-heading">
+        <h3>Full-length secondary structure diagram</h3>
+        <p>PDBsum-style layout: helices as springs, strands as arrows, coils as lines. Each amino acid is shown within its predicted structural element. The variant site is highlighted.</p>
+      </div>
+      <div class="ss-diagram-legend">
+        <span class="ss-legend-item"><span class="ss-legend-shape ss-legend-helix"></span> Alpha helix</span>
+        <span class="ss-legend-item"><span class="ss-legend-shape ss-legend-strand"></span> Beta strand</span>
+        <span class="ss-legend-item"><span class="ss-legend-shape ss-legend-coil"></span> Coil / Loop</span>
+        <span class="ss-legend-item"><span class="ss-legend-shape ss-legend-variant"></span> Variant site</span>
+      </div>
+      <div class="ss-diagram">
+        {% for line in report.secondary_structure_panel.diagram_rows %}
+          <div class="ss-diagram-line">
+            <span class="ss-line-label ss-line-start">{{ line.start }}</span>
+            <div class="ss-diagram-row">
+              {% for seg in line.segments %}
+                <div class="ss-seg ss-{{ seg.class_name }}" title="{{ seg.label }} ({{ seg.length }} residues)">
+                  {% for r in seg.residues %}
+                    <div class="ss-res {% if r.is_variant_site %}ss-variant{% endif %}" title="{{ r.position }} {{ r.aa }} — {{ r.state }} ({{ r.confidence_pct }}%)">
+                      <span class="ss-aa">{{ r.aa }}</span>
+                      {% if r.position % 10 == 0 %}
+                        <span class="ss-pos-tick">{{ r.position }}</span>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endfor %}
+            </div>
+            <span class="ss-line-label ss-line-end">{{ line.end }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if report.conservation_panel %}
+    <section class="panel conservation-panel">
+      <div class="panel-heading">
+        <h2>Primate residue conservation at the variant site <span class="annot-badge annot-badge-seq">Sequence</span></h2>
+        <p>This section is position-specific only: it shows which amino acid each primate orthologue carries at human residue {{ report.conservation_panel.variant_position }}.</p>
+      </div>
+      <div class="conservation-summary-grid">
+        <article class="count-card">
+          <span class="count-value">{{ report.conservation_panel.conservation_pct }}%</span>
+          <span class="count-label">Same residue as human {{ report.conservation_panel.human_residue }}</span>
+        </article>
+        <article class="count-card">
+          <span class="count-value">{{ report.conservation_panel.conserved_count }}/{{ report.conservation_panel.comparable_count }}</span>
+          <span class="count-label">Comparable primate orthologues at this site</span>
+        </article>
+        <article class="count-card">
+          <span class="count-value">{{ report.conservation_panel.dominant_residue }}</span>
+          <span class="count-label">Dominant residue at position {{ report.conservation_panel.variant_position }}</span>
+        </article>
+        <article class="count-card">
+          <span class="count-value">{{ report.conservation_panel.mutant_match_count }}</span>
+          <span class="count-label">Orthologues already matching mutant {{ report.conservation_panel.mutant_residue }}</span>
+        </article>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Species</th>
+              <th>Residue at {{ report.conservation_panel.variant_position }}</th>
+              <th>Match class</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in report.conservation_panel.species_rows %}
+              <tr>
+                <td>{{ row.species_label }}</td>
+                <td>{{ row.site_residue }}</td>
+                <td>{{ row.match_class }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if report.phylogenetic_panel %}
+    <section class="panel phylogeny-panel">
+      <div class="panel-heading">
+        <h2>Whole-gene phylogenetic analysis <span class="annot-badge annot-badge-seq">Sequence</span></h2>
+        <p>{{ report.phylogenetic_panel.method }}</p>
+      </div>
+      <div class="conservation-summary-grid phylogeny-summary-grid">
+        <article class="count-card">
+          <span class="count-value">{{ report.phylogenetic_panel.species_count }}</span>
+          <span class="count-label">Full-length orthologue sequences in tree</span>
+        </article>
+        {% if report.phylogenetic_panel.closest_species %}
+          <article class="count-card">
+            <span class="count-value">{{ report.phylogenetic_panel.closest_species.species_label }}</span>
+            <span class="count-label">Closest whole-gene neighbour at {{ report.phylogenetic_panel.closest_species.percent_identity }}% identity</span>
+          </article>
+        {% endif %}
+        {% if report.phylogenetic_panel.farthest_species %}
+          <article class="count-card">
+            <span class="count-value">{{ report.phylogenetic_panel.farthest_species.species_label }}</span>
+            <span class="count-label">Most diverged whole-gene neighbour at {{ report.phylogenetic_panel.farthest_species.percent_identity }}% identity</span>
+          </article>
+        {% endif %}
+      </div>
+      <div class="phylogeny-figure-grid">
+        <div class="phylogeny-gallery">
+          {% if report.phylogenetic_panel.tree_views %}
+            <div class="tree-view-toolbar" role="tablist" aria-label="Phylogeny view selector">
+              {% for view in report.phylogenetic_panel.tree_views %}
+                <button
+                  type="button"
+                  class="tree-view-tab {% if loop.first %}is-active{% endif %}"
+                  data-tree-view-trigger="{{ view.key }}"
+                  aria-pressed="{{ 'true' if loop.first else 'false' }}"
+                >
+                  <strong>{{ view.label }}</strong>
+                  <span>{{ view.summary }}</span>
+                </button>
+              {% endfor %}
+            </div>
+            <div class="tree-view-panels">
+              {% for view in report.phylogenetic_panel.tree_views %}
+                <section
+                  class="tree-view-panel {% if loop.first %}is-active{% endif %}"
+                  data-tree-view-panel="{{ view.key }}"
+                >
+                  <div class="phylo-frame">
+                    {{ view.svg|safe }}
+                  </div>
+                </section>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="phylo-frame">
+              {{ report.phylogenetic_panel.tree_svg|safe }}
+            </div>
+          {% endif %}
+        </div>
+        <aside class="phylogeny-legend">
+          <h3>How to read this figure</h3>
+          <ul class="summary-list">
+            <li><strong>Branches:</strong> whole-gene similarity from full-length orthologue protein sequences</li>
+            <li><strong>Residue badge:</strong> amino acid carried at the submitted human position</li>
+            <li><strong>Identity badge:</strong> whole-gene identity to human, not site-specific conservation</li>
+            <li><strong>Human row:</strong> reference sequence highlighted as the anchor lineage</li>
+          </ul>
+        </aside>
+      </div>
+      <div class="phylogeny-newick">
+        <h3>Newick tree</h3>
+        <pre>{{ report.phylogenetic_panel.newick }}</pre>
+      </div>
+      <div class="table-wrap">
+        <table class="identity-matrix">
+          <thead>
+            <tr>
+              <th>Species</th>
+              {% for header in report.phylogenetic_panel.matrix_headers %}
+                <th>{{ header }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in report.phylogenetic_panel.matrix_rows %}
+              <tr>
+                <th>{{ row.species_label }}</th>
+                {% for cell in row.cells %}
+                  <td class="{{ cell.class_name }}">{{ cell.value }}%</td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if report.chromosome_location_panel %}
+    <section class="panel chromosome-panel">
+      <div class="panel-heading">
+        <h2>Chromosome and transcript location <span class="annot-badge annot-badge-seq">Sequence</span></h2>
+        <p>Three layers show the full chromosome context, the transcript exon-intron layout, and a variant-exon zoom with split compression when needed.</p>
+      </div>
+      <div class="count-grid">
+        <article class="count-card">
+          <span class="count-value">chr{{ report.chromosome_location_panel.chromosome }}</span>
+          <span class="count-label">{{ report.chromosome_location_panel.chromosome_length_label }}</span>
+        </article>
+        <article class="count-card">
+          <span class="count-value">{{ report.chromosome_location_panel.gene_symbol }}</span>
+          <span class="count-label">{{ report.chromosome_location_panel.gene_span_label }}</span>
+        </article>
+        <article class="count-card">
+          <span class="count-value">{{ report.chromosome_location_panel.variant_span_label }}</span>
+          <span class="count-label">Variant genomic span</span>
+        </article>
+        <article class="count-card">
+          <span class="count-value">{{ report.chromosome_location_panel.strand_label }}</span>
+          <span class="count-label">{{ report.chromosome_location_panel.transcript_id }}</span>
+        </article>
+      </div>
+      <div class="layer-card">
+        <div class="layer-header">
+          <h3>Layer 1: full chromosome</h3>
+          <span>Gene region highlighted on the full chromosome</span>
+        </div>
+        <div class="chromosome-track">
+          <div class="chromosome-gene-window" style="left: {{ report.chromosome_location_panel.gene_left_pct }}%; width: {{ report.chromosome_location_panel.gene_width_pct }}%;"></div>
+          <div class="chromosome-variant-pin" style="left: {{ report.chromosome_location_panel.variant_left_pct }}%;"></div>
+        </div>
+      </div>
+      <div class="layer-card">
+        <div class="layer-header">
+          <h3>Layer 2: exon-intron gene view</h3>
+          <span>Introns are compressed to keep all exons legible</span>
+        </div>
+        <div class="gene-region-track">
+          <div class="gene-region-baseline"></div>
+          <div class="gene-region-variant" style="left: {{ report.chromosome_location_panel.gene_track_variant_pct }}%; width: {{ report.chromosome_location_panel.gene_track_variant_width_pct }}%;"></div>
+          {% for exon in report.chromosome_location_panel.exon_rows %}
+            <div class="gene-exon {% if exon.contains_variant %}contains-variant{% endif %}" style="left: {{ exon.left_pct }}%; width: {{ exon.width_pct }}%;">
+              {% if exon.width_pct > 6 %}
+                <span>E{{ exon.number }}</span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% if report.chromosome_location_panel.exon_focus %}
+        <div class="layer-card">
+          <div class="layer-header">
+            <h3>Layer 3: variant exon zoom</h3>
+            <span>{{ report.chromosome_location_panel.exon_focus.label }} {{ report.chromosome_location_panel.exon_focus.start }}-{{ report.chromosome_location_panel.exon_focus.end }}</span>
+          </div>
+          <div class="focus-track">
+            {% if report.chromosome_location_panel.exon_focus.left_truncated %}
+              <span class="focus-break left">split</span>
+            {% endif %}
+            <div class="focus-exon-window">
+              <div class="focus-variant-window" style="left: {{ report.chromosome_location_panel.exon_focus.variant_left_pct }}%; width: {{ report.chromosome_location_panel.exon_focus.variant_width_pct }}%;"></div>
+            </div>
+            {% if report.chromosome_location_panel.exon_focus.right_truncated %}
+              <span class="focus-break right">split</span>
+            {% endif %}
+          </div>
+          <p class="focus-caption">
+            Visible exon window: {{ report.chromosome_location_panel.exon_focus.visible_start }}-{{ report.chromosome_location_panel.exon_focus.visible_end }}
+            within a {{ report.chromosome_location_panel.exon_focus.length }} bp exon.
+          </p>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="panel saveable-panel" id="sec-residue" data-panel-title="Residue Context">
+    <div class="panel-heading">
+      <h2>Residue context <span class="annot-badge annot-badge-seq">Sequence</span></h2>
+      <p>The neighborhood view highlights the substituted site and local property shifts across the immediate sequence window.</p>
+    </div>
+    <div class="context-grid">
+      <article class="context-card">
+        <h3>Wild-type window</h3>
+        <p class="window-range">{{ report.context.window_start }}-{{ report.context.window_end }}</p>
+        <pre class="sequence-window">{{ report.context.wild_window }}</pre>
+      </article>
+      <article class="context-card">
+        <h3>Mutant window</h3>
+        <p class="window-range">{{ report.context.window_start }}-{{ report.context.window_end }}</p>
+        <pre class="sequence-window">{{ report.context.mutant_window }}</pre>
+      </article>
+    </div>
+    <div class="property-grid">
+      <article class="property-card">
+        <h3>Wild-type residue</h3>
+        <ul>
+          <li>Hydropathy: {{ report.context.wild_type_properties.hydropathy }}</li>
+          <li>Charge: {{ report.context.wild_type_properties.charge_class }}</li>
+          <li>Polarity: {{ report.context.wild_type_properties.polarity_class }}</li>
+          <li>Aromatic: {{ "yes" if report.context.wild_type_properties.aromatic else "no" }}</li>
+        </ul>
+      </article>
+      <article class="property-card">
+        <h3>Mutant residue</h3>
+        <ul>
+          <li>Hydropathy: {{ report.context.mutant_properties.hydropathy }}</li>
+          <li>Charge: {{ report.context.mutant_properties.charge_class }}</li>
+          <li>Polarity: {{ report.context.mutant_properties.polarity_class }}</li>
+          <li>Aromatic: {{ "yes" if report.context.mutant_properties.aromatic else "no" }}</li>
+        </ul>
+      </article>
+    </div>
+    <div class="mini-plot">
+      {% for point in report.hydropathy_window_plot %}
+        <div class="mini-plot-column {% if point.is_variant_site %}is-variant{% endif %}">
+          <div class="mini-bars">
+            <span class="mini-bar mini-bar-wild {{ point.wild_direction }}" style="height: {{ point.wild_height_pct }}%;"></span>
+            <span class="mini-bar mini-bar-mutant {{ point.mutant_direction }}" style="height: {{ point.mutant_height_pct }}%;"></span>
+          </div>
+          <span class="mini-label">{{ point.position }}</span>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if report.accessibility_panel %}
+    <section class="panel saveable-panel" id="sec-rsa" data-panel-title="Solvent Accessibility">
+      <div class="panel-heading">
+        <h2>RSA and ASA profile <span class="annot-badge annot-badge-str">Structural</span></h2>
+        <p>DMVFL-RSA predicts residue-wise relative and absolute solvent accessibility for the full protein sequence.</p>
+      </div>
+      <div class="count-grid">
+        <article class="count-card">
+          <span class="count-value">{{ report.accessibility_panel.mean_rsa }}</span>
+          <span class="count-label">Mean RSA</span>
+        </article>
+        <article class="count-card">
+          <span class="count-value">{{ report.accessibility_panel.mean_asa }}</span>
+          <span class="count-label">Mean ASA</span>
+        </article>
+        <article class="count-card">
+          <span class="count-value">{{ report.accessibility_panel.exposed_count }}</span>
+          <span class="count-label">Exposed residues</span>
+        </article>
+        <article class="count-card">
+          <span class="count-value">{{ report.accessibility_panel.buried_count }}</span>
+          <span class="count-label">Buried residues</span>
+        </article>
+      </div>
+      <div class="mini-plot accessibility-plot">
+        {% for point in report.accessibility_panel.points %}
+          <div class="mini-plot-column {% if point.is_variant_site %}is-variant{% endif %}">
+            <div class="mini-bars">
+              <span class="mini-bar mini-bar-wild positive" style="height: {{ point.rsa_height_pct }}%;"></span>
+              <span class="mini-bar mini-bar-mutant positive" style="height: {{ point.asa_height_pct }}%;"></span>
+            </div>
+            <span class="mini-label">{{ point.position }}</span>
+          </div>
+        {% endfor %}
+      </div>
+      {% if report.accessibility_panel.variant_row %}
+        <div class="alert alert-note">
+          <p>
+            Variant site {{ report.accessibility_panel.variant_row.Position }} {{ report.accessibility_panel.variant_row.AA }}
+            has predicted RSA {{ report.accessibility_panel.variant_row.RSA }} and ASA {{ report.accessibility_panel.variant_row.ASA }}
+            A^2, classified as {{ report.accessibility_panel.variant_row.Exposure|lower }}.
+          </p>
+        </div>
+      {% endif %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Position</th>
+              <th>AA</th>
+              <th>RSA</th>
+              <th>ASA</th>
+              <th>Exposure</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in report.accessibility_panel.table_rows %}
+              <tr>
+                <td>{{ row.Position }}</td>
+                <td>{{ row.AA }}</td>
+                <td>{{ row.RSA }}</td>
+                <td>{{ row.ASA }}</td>
+                <td>{{ row.Exposure }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# Structural context verdict                                          #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.structural_verdict %}
+    <section class="panel verdict-panel">
+      <div class="panel-heading">
+        <h2>Integrated structural context <span class="annot-badge annot-badge-str">Structural</span></h2>
+        <p>Combined secondary structure and solvent accessibility assessment at the variant site.</p>
+      </div>
+      <div class="verdict-card verdict-ss-{{ report.structural_verdict.ss_class }} verdict-rsa-{{ report.structural_verdict.rsa_class }}">
+        <p class="structure-kicker">Structural verdict</p>
+        <p class="verdict-sentence">{{ report.structural_verdict.verdict_sentence }}</p>
+        <div class="verdict-pills">
+          {% for part in report.structural_verdict.parts %}
+            <span class="verdict-pill">{{ part }}</span>
+          {% endfor %}
+          {% if report.structural_verdict.domain_context %}
+            <span class="verdict-pill verdict-pill-domain">Domain: {{ report.structural_verdict.domain_context }}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% if report.amphipathic_panel %}
+        <div class="amphipathic-card">
+          <p class="structure-kicker">Amphipathic helix detected</p>
+          <p class="amphipathic-summary">{{ report.amphipathic_panel.summary }}</p>
+          <div class="amphipathic-stats">
+            <div class="amphi-stat">
+              <span>Segment</span>
+              <strong>{{ report.amphipathic_panel.segment_start }}–{{ report.amphipathic_panel.segment_end }}</strong>
+            </div>
+            <div class="amphi-stat">
+              <span>Length</span>
+              <strong>{{ report.amphipathic_panel.segment_length }} aa</strong>
+            </div>
+            <div class="amphi-stat">
+              <span>Hydrophobic moment</span>
+              <strong>{{ report.amphipathic_panel.hydrophobic_moment }}</strong>
+            </div>
+            <div class="amphi-stat">
+              <span>Character</span>
+              <strong>{{ report.amphipathic_panel.interpretation | title }}</strong>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# Mutation stability prediction panel                                 #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.stability_panel %}
+    {% set sp = report.stability_panel %}
+    <section class="panel stability-panel saveable-panel" id="sec-stability" data-panel-title="Stability Prediction">
+      <div class="panel-heading">
+        <h2>Mutation stability prediction <span class="annot-badge annot-badge-str">Structural</span></h2>
+        <p>Empirical ΔΔG estimate based on BLOSUM62 evolutionary compatibility, hydrophobicity delta, and residue volume change. Classifies the substitution as stabilizing, neutral, or destabilizing.</p>
+      </div>
+      <div class="stability-hero">
+        <div class="ddg-card {{ sp.ddg_class_name }}">
+          <span class="ddg-value">{{ "%+.2f"|format(sp.ddg_estimate) }}</span>
+          <span class="ddg-label">{{ sp.ddg_label }}</span>
+          <span class="ddg-unit">ΔΔG estimate (kcal/mol)</span>
+        </div>
+        <div class="stability-metrics">
+          <div class="stability-metric-row">
+            <span class="sm-label">BLOSUM62 score</span>
+            <span class="sm-value">{{ sp.blosum62_score }}</span>
+            <span class="sm-note">{{ sp.blosum62_interpretation }}</span>
+          </div>
+          <div class="stability-metric-row">
+            <span class="sm-label">Hydrophobicity Δ</span>
+            <span class="sm-value">{{ "%+.2f"|format(sp.hydro_delta) }}</span>
+            <span class="sm-note">Kyte–Doolittle scale shift</span>
+          </div>
+          <div class="stability-metric-row">
+            <span class="sm-label">Volume Δ</span>
+            <span class="sm-value">{{ "%+.1f"|format(sp.vol_delta) }} Å³</span>
+            <span class="sm-note">Residue side-chain volume change</span>
+          </div>
+          <div class="stability-metric-row">
+            <span class="sm-label">SIFT-proxy tolerance</span>
+            <span class="sm-value">{{ sp.sift_proxy }}</span>
+            <span class="sm-note">{{ sp.sift_tolerance }} — fraction of BLOSUM62 row ≥ substitution score</span>
+          </div>
+        </div>
+      </div>
+      <div class="property-changes">
+        {% for change in sp.property_changes %}
+          <span class="property-pill impact-{{ change.impact }}">
+            <strong>{{ change.property }}:</strong>
+            {{ change.from }} → {{ change.to }}
+          </span>
+        {% endfor %}
+      </div>
+      <p class="stability-summary-text">{{ sp.summary }}</p>
+      <p class="stability-disclaimer">{{ sp.disclaimer }}</p>
+    </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# AlphaFold pLDDT panel                                               #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.alphafold_panel %}
+    {% set af = report.alphafold_panel %}
+    <section class="panel alphafold-panel saveable-panel" id="sec-alphafold" data-panel-title="AlphaFold Confidence">
+      <div class="panel-heading">
+        <h2>AlphaFold2 structural confidence <span class="annot-badge annot-badge-str">Structural</span></h2>
+        <p>
+          Per-residue pLDDT scores from the AlphaFold EBI database ({{ af.entry_id }}).
+          Model date: {{ af.model_date or "unknown" }}.
+          Coverage: residues {{ af.uniprot_start }}–{{ af.uniprot_end }}.
+          <a href="{{ af.viewer_url }}" target="_blank" rel="noopener">Open in AlphaFold viewer ↗</a>
+        </p>
+      </div>
+
+      {% if af.plddt_available %}
+        <div class="af-hero">
+          <article class="af-spotlight {% if af.variant_row %}{{ af.variant_row.plddt_class }}{% endif %}">
+            <p class="structure-kicker">Variant-site confidence</p>
+            {% if af.variant_row %}
+              <h3>pLDDT {{ af.variant_row.plddt }} — {{ af.variant_row.plddt_label }}</h3>
+              <p class="structure-lede">
+                Position {{ report.variant.position }} has a pLDDT of
+                <strong>{{ af.variant_row.plddt }}</strong>
+                ({{ af.variant_row.plddt_label | lower }} confidence).
+              </p>
+            {% else %}
+              <h3>Position not modelled</h3>
+              <p class="structure-lede">The variant site falls outside the AlphaFold model range.</p>
+            {% endif %}
+
+            {% if af.alphamissense %}
+              <div class="am-badge {{ af.alphamissense.class_name }}">
+                <span class="am-kicker">AlphaMissense</span>
+                <strong class="am-label">{{ af.alphamissense.label }}</strong>
+                <span class="am-score">Pathogenicity score {{ af.alphamissense.score }}</span>
+              </div>
+            {% endif %}
+          </article>
+
+          <div class="af-confidence-grid">
+            {% for card in af.confidence_cards %}
+              <div class="af-conf-card {{ card.class_name }}">
+                <span class="af-conf-label">{{ card.label }}</span>
+                <strong class="af-conf-count">{{ card.count }}</strong>
+                <small class="af-conf-pct">{{ card.percent }}%</small>
+                <div class="af-conf-swatch" style="background: {{ card.color }};"></div>
+              </div>
+            {% endfor %}
+            <div class="af-conf-card af-conf-mean">
+              <span class="af-conf-label">Mean pLDDT</span>
+              <strong class="af-conf-count {{ af.mean_plddt_class }}">{{ af.mean_plddt }}</strong>
+              <small class="af-conf-pct">{{ af.mean_plddt_label }}</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="structure-strip">
+          <div class="structure-strip-header">
+            <span>Residue {{ af.uniprot_start }}</span>
+            <span>AlphaFold pLDDT confidence track</span>
+            <span>Residue {{ af.uniprot_end }}</span>
+          </div>
+          <div class="structure-strip-track">
+            <div class="structure-variant-marker" style="left: {{ ((report.variant.position - 1) / report.protein.length * 100) | round(3) }}%;"></div>
+            {% for seg in af.segments %}
+              <div
+                class="plddt-segment {{ seg.class_name }}"
+                style="left: {{ seg.left_pct }}%; width: {{ seg.width_pct }}%;"
+                title="{{ seg.label }} {{ seg.start }}-{{ seg.end }}"
+              ></div>
+            {% endfor %}
+          </div>
+          <div class="plddt-legend">
+            <span class="plddt-legend-item"><span class="plddt-legend-swatch" style="background:#0053D6;"></span> Very high (&gt;90)</span>
+            <span class="plddt-legend-item"><span class="plddt-legend-swatch" style="background:#65CBF3;"></span> High (70–90)</span>
+            <span class="plddt-legend-item"><span class="plddt-legend-swatch" style="background:#FFDB13;"></span> Low (50–70)</span>
+            <span class="plddt-legend-item"><span class="plddt-legend-swatch" style="background:#FF7D45;"></span> Very low (&lt;50)</span>
+          </div>
+        </div>
+      {% else %}
+        <div class="alert alert-note">
+          <p>AlphaFold model metadata was retrieved but per-residue pLDDT data could not be loaded.
+             <a href="{{ af.viewer_url }}" target="_blank" rel="noopener">View the entry directly ↗</a></p>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# PDB experimental structure panel                                    #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.pdb_panel %}
+    {% set pdb = report.pdb_panel %}
+    <section class="panel pdb-panel saveable-panel" id="sec-pdb" data-panel-title="PDB Structures">
+      <div class="panel-heading">
+        <h2>Experimental PDB structures <span class="annot-badge annot-badge-str">Structural</span></h2>
+        <p>
+          {{ pdb.total_count }} PDB entr{{ "y" if pdb.total_count == 1 else "ies" }} found.
+          {% if pdb.variant_covered_count > 0 %}
+            <strong>{{ pdb.variant_covered_count }}</strong> cover{{ "" if pdb.variant_covered_count == 1 else "" }} position {{ report.variant.position }}.
+          {% else %}
+            None cover position {{ report.variant.position }}.
+          {% endif %}
+        </p>
+      </div>
+
+      {% if pdb.best_entry %}
+        {% set b = pdb.best_entry %}
+        <div class="pdb-best-card">
+          <p class="structure-kicker">Best structure at the variant site</p>
+          <div class="pdb-best-row">
+            <div class="pdb-best-id">
+              <a href="{{ b.pdb_url }}" target="_blank" rel="noopener">{{ b.pdb_id }}</a>
+            </div>
+            <div class="pdb-best-meta">
+              <span>{{ b.method }}</span>
+              {% if b.resolution %}<span>{{ b.resolution }}</span>{% endif %}
+              {% if b.chain %}<span>Chain {{ b.chain }}</span>{% endif %}
+              {% if b.residue_start and b.residue_end %}
+                <span>Residues {{ b.residue_start }}–{{ b.residue_end }}</span>
+              {% endif %}
+            </div>
+            <a class="pdb-viewer-link" href="{{ b.viewer_url }}" target="_blank" rel="noopener">
+              View 3D structure ↗
+            </a>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>PDB ID</th>
+              <th>Method</th>
+              <th>Resolution</th>
+              <th>Chain</th>
+              <th>Range</th>
+              <th>Covers variant</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in pdb.entries[:20] %}
+              <tr {% if entry.covers_variant %}class="pdb-row-covering"{% endif %}>
+                <td><a href="{{ entry.pdb_url }}" target="_blank" rel="noopener">{{ entry.pdb_id }}</a></td>
+                <td>{{ entry.method or "—" }}</td>
+                <td>{{ entry.resolution or "—" }}</td>
+                <td>{{ entry.chain or "—" }}</td>
+                <td>{% if entry.residue_start and entry.residue_end %}{{ entry.residue_start }}–{{ entry.residue_end }}{% else %}—{% endif %}</td>
+                <td>{{ "Yes" if entry.covers_variant else "No" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if pdb.total_count > 20 %}
+        <p style="color: var(--muted); margin-top: 8px;">Showing 20 of {{ pdb.total_count }} entries. Use the JSON export for the complete list.</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# 3D Protein Structure Viewer                                         #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.alphafold_panel or report.pdb_panel %}
+    <section class="panel viewer-panel">
+      <div class="panel-heading">
+        <h2>Interactive 3D structure viewer <span class="annot-badge annot-badge-str">Structural</span></h2>
+        <p>Explore the protein structure directly in the browser. AlphaFold model is coloured by pLDDT confidence (blue = high, red = low). The variant residue is highlighted as a red sphere.</p>
+      </div>
+
+      <div class="viewer-toggle-bar">
+        {% if report.alphafold_panel and report.alphafold_panel.entry_id %}
+          <button class="active" id="btn-af" onclick="loadAlphaFold()">
+            AlphaFold Model
+            {% if report.alphafold_panel.mean_plddt is defined %}
+              <small style="opacity:0.8;margin-left:4px;">(pLDDT {{ report.alphafold_panel.mean_plddt }})</small>
+            {% endif %}
+          </button>
+        {% endif %}
+        {% if report.pdb_panel and report.pdb_panel.best_entry %}
+          <button id="btn-pdb" onclick="loadPdbEntry('{{ report.pdb_panel.best_entry.pdb_id }}')">
+            {{ report.pdb_panel.best_entry.pdb_id }} ({{ report.pdb_panel.best_entry.method }})
+          </button>
+        {% endif %}
+      </div>
+
+      <div id="mol-viewer"></div>
+
+      <div class="viewer-legend">
+        {% if report.alphafold_panel and report.alphafold_panel.entry_id %}
+          <span class="viewer-legend-item">
+            <span class="viewer-legend-swatch" style="background:#0053D6;"></span> pLDDT &gt;90 (very high)
+          </span>
+          <span class="viewer-legend-item">
+            <span class="viewer-legend-swatch" style="background:#65CBF3;"></span> pLDDT 70–90 (high)
+          </span>
+          <span class="viewer-legend-item">
+            <span class="viewer-legend-swatch" style="background:#FFDB13;"></span> pLDDT 50–70 (low)
+          </span>
+          <span class="viewer-legend-item">
+            <span class="viewer-legend-swatch" style="background:#FF7D45;"></span> pLDDT &lt;50 (very low)
+          </span>
+        {% endif %}
+        <span class="viewer-legend-item">
+          <span class="viewer-legend-swatch" style="background:#ff2222;"></span> Variant site (pos. {{ report.variant.position }})
+        </span>
+      </div>
+      <p class="viewer-note">Use left-click to rotate, right-click to translate, scroll to zoom. Ctrl+click to select residues.</p>
+
+      <script>
+        (function () {
+          var variantPosition = {{ report.variant.position }};
+          {% if report.alphafold_panel and report.alphafold_panel.entry_id %}
+          var afEntryId = "{{ report.alphafold_panel.entry_id }}";
+          var afPdbUrl = "https://files.alphafold.ebi.ac.uk/files/" + afEntryId + "-model_v4.pdb";
+          {% else %}
+          var afEntryId = null;
+          var afPdbUrl = null;
+          {% endif %}
+          {% if report.pdb_panel and report.pdb_panel.best_entry %}
+          var bestPdbId = "{{ report.pdb_panel.best_entry.pdb_id }}";
+          {% else %}
+          var bestPdbId = null;
+          {% endif %}
+
+          var viewer = null;
+
+          function initViewer() {
+            if (typeof $3Dmol === "undefined") { return; }
+            viewer = $3Dmol.createViewer("mol-viewer", { backgroundColor: "white" });
+            if (afPdbUrl) {
+              loadAlphaFold();
+            } else if (bestPdbId) {
+              loadPdbEntry(bestPdbId);
+            }
+          }
+
+          window.loadAlphaFold = function () {
+            if (!viewer || !afPdbUrl) { return; }
+            setActiveBtn("btn-af");
+            viewer.clear();
+            jQuery.ajax(afPdbUrl, {
+              success: function (data) {
+                viewer.addModel(data, "pdb");
+                viewer.setStyle({}, {
+                  cartoon: {
+                    colorscheme: {
+                      prop: "b",
+                      gradient: "linear",
+                      colors: ["#FF7D45", "#FFDB13", "#65CBF3", "#0053D6"],
+                      min: 0,
+                      max: 100
+                    }
+                  }
+                });
+                viewer.addStyle({ resi: variantPosition }, {
+                  sphere: { color: "#ff2222", radius: 0.9 }
+                });
+                viewer.zoomTo();
+                viewer.render();
+              },
+              error: function () {
+                document.getElementById("mol-viewer").innerHTML =
+                  '<p style="text-align:center;padding:40px;color:#888;">Could not load AlphaFold PDB file. Try the <a href="' + afPdbUrl + '" target="_blank">direct link</a>.</p>';
+              }
+            });
+          };
+
+          window.loadPdbEntry = function (pdbId) {
+            if (!viewer) { return; }
+            setActiveBtn("btn-pdb");
+            viewer.clear();
+            $3Dmol.download("pdb:" + pdbId, viewer, { multimodel: true, frames: true }, function () {
+              viewer.setStyle({}, { cartoon: { color: "spectrum" } });
+              viewer.addStyle({ resi: variantPosition }, {
+                sphere: { color: "#ff2222", radius: 0.9 }
+              });
+              viewer.zoomTo();
+              viewer.render();
+            });
+          };
+
+          function setActiveBtn(activeId) {
+            ["btn-af", "btn-pdb"].forEach(function (id) {
+              var el = document.getElementById(id);
+              if (el) { el.classList.toggle("active", el.id === activeId); }
+            });
+          }
+
+          if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", function () { setTimeout(initViewer, 100); });
+          } else {
+            setTimeout(initViewer, 100);
+          }
+        }());
+      </script>
+    </section>
+  {% endif %}
+
+  {% if report.supplementary_residue_tracks %}
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>Supplementary predictor tracks</h2>
+        <p>These residue-level tracks come only from configured true-analysis wrappers that emitted normalized JSON results.</p>
+      </div>
+      {% for track in report.supplementary_residue_tracks %}
+        <div class="track-panel">
+          <h3>{{ track["label"] }} <span>{{ track["source"] }}</span></h3>
+          <div class="mini-plot residue-track">
+            {% for point in track["values"] %}
+              <div class="mini-plot-column {% if point.is_variant_site %}is-variant{% endif %}">
+                <div class="mini-bars">
+                  <span class="mini-bar mini-bar-wild positive" style="height: {{ point.height_pct }}%;"></span>
+                </div>
+                <span class="mini-label">{{ point.position }}</span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </section>
+  {% endif %}
+
+  {# ── Structural empty states ──────────────────────────────────── #}
+  {% if not report.secondary_structure_panel and not report.accessibility_panel %}
+    <section class="panel empty-state-panel">
+      <div class="empty-state-icon">🦴</div>
+      <h3>Structural predictors not configured</h3>
+      <p>
+        PSIPRED (secondary structure) and DMVFL-RSA (solvent accessibility) are optional local tools.
+        Install and configure them to unlock full per-residue structural predictions here.
+      </p>
+      <div class="empty-state-tools">
+        <div class="empty-tool-card">
+          <strong>PSIPRED</strong>
+          <span>Secondary structure (helix / strand / coil)</span>
+          <code>Set PSIPRED_COMMAND_TEMPLATE in .env.predictors</code>
+        </div>
+        <div class="empty-tool-card">
+          <strong>DMVFL-RSA</strong>
+          <span>Solvent accessibility (RSA / ASA per residue)</span>
+          <code>Set DMVFL_RSA_COMMAND_TEMPLATE in .env.predictors</code>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  </div>{# /tabpanel-str #}
+
+  {# ── TAB PANEL C: Disease & Function ──────────────────────────── #}
+  <div class="report-tabpanel hidden" id="tabpanel-dis" role="tabpanel" aria-labelledby="tab-dis">
+  {# ── SECTION C ─────────────────────────────────────────────────── #}
+  <div class="report-section-divider section-disease">
+    <h2>&#x1F4CA; Section C — Disease &amp; Functional Context</h2>
+  </div>
+  {# Disease & functional context: Protein Atlas expression and
+     localisation, Open Targets disease associations and drugs       #}
+
+  {# ------------------------------------------------------------------ #}
+  {# Protein Atlas panel                                                  #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.protein_atlas_panel %}
+    {% set pa = report.protein_atlas_panel %}
+    <section class="panel saveable-panel" id="sec-atlas" data-panel-title="Protein Atlas">
+      <div class="panel-heading">
+        <h2>Human Protein Atlas <span class="annot-badge annot-badge-dis">Database</span></h2>
+        <p>
+          Tissue expression, subcellular localisation, and disease data for
+          <strong>{{ pa.gene_symbol }}</strong> from the Human Protein Atlas (HPA).
+          <a href="{{ pa.hpa_url }}" target="_blank" rel="noopener">Open in HPA ↗</a>
+        </p>
+      </div>
+
+      {# Gene overview row #}
+      {% if pa.gene_description %}
+        <p style="margin-bottom:16px;font-size:0.9rem;color:var(--muted);">{{ pa.gene_description }}</p>
+      {% endif %}
+
+      <div class="pa-summary-grid">
+        {% if pa.protein_class %}
+          <div class="pa-summary-card">
+            <p class="pa-summary-label">Protein class</p>
+            <div class="subcell-pills">
+              {% for cls in pa.protein_class %}
+                <span class="subcell-pill subcell-pill-blue">{{ cls }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+        {% if pa.biological_process %}
+          <div class="pa-summary-card">
+            <p class="pa-summary-label">Biological process</p>
+            <div class="subcell-pills">
+              {% for bp in pa.biological_process %}
+                <span class="subcell-pill subcell-pill-green">{{ bp }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+        {% if pa.molecular_function %}
+          <div class="pa-summary-card">
+            <p class="pa-summary-label">Molecular function</p>
+            <div class="subcell-pills">
+              {% for mf in pa.molecular_function %}
+                <span class="subcell-pill subcell-pill-purple">{{ mf }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if pa.subcellular_locations %}
+        <div class="panel-heading compact-heading">
+          <h3>Subcellular localisation</h3>
+        </div>
+        <div class="subcell-pills" style="margin-bottom:16px;">
+          {% for loc in pa.subcellular_locations %}
+            <span class="subcell-pill">{{ loc.location }}</span>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if pa.disease_associations %}
+        <div class="panel-heading compact-heading">
+          <h3>Disease involvement</h3>
+        </div>
+        <div class="atlas-disease-list" style="margin-bottom:16px;">
+          {% for d in pa.disease_associations %}
+            <span class="atlas-disease-tag">{{ d.disease }}</span>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if pa.rna_fields %}
+        <div class="panel-heading compact-heading">
+          <h3>RNA expression summary</h3>
+        </div>
+        <table class="data-table" style="margin-bottom:0;">
+          <tbody>
+            {% for row in pa.rna_fields %}
+              <tr><td style="font-weight:600;width:220px;">{{ row.label }}</td><td>{{ row.value }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+
+      {% if pa.interactions %}
+        <p style="margin-top:12px;font-size:0.82rem;color:var(--muted);">
+          Known protein interactions: <strong>{{ pa.interactions }}</strong> ·
+          Evidence: {{ pa.evidence or "—" }} ·
+          <a href="{{ pa.hpa_url }}" target="_blank" rel="noopener">Full entry ↗</a>
+        </p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# Open Targets panel                                                   #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.open_targets_panel %}
+    {% set ot = report.open_targets_panel %}
+    <section class="panel saveable-panel" id="sec-opentargets" data-panel-title="Open Targets">
+      <div class="panel-heading">
+        <h2>Open Targets Platform <span class="annot-badge annot-badge-dis">Database</span></h2>
+        <p>
+          Disease associations and drug target evidence for
+          <strong>{{ ot.approved_name or query_args.query }}</strong>
+          ({{ ot.ensembl_id }}, {{ ot.biotype or "protein coding" }}).
+          <a href="{{ ot.ot_url }}" target="_blank" rel="noopener">Open in Open Targets ↗</a>
+        </p>
+      </div>
+
+      {% if ot.function_descriptions %}
+        <div class="panel-heading compact-heading"><h3>Function</h3></div>
+        {% for desc in ot.function_descriptions %}
+          <p style="margin-bottom:6px;font-size:0.88rem;">{{ desc }}</p>
+        {% endfor %}
+      {% endif %}
+
+      {% if ot.disease_rows %}
+        <div class="panel-heading compact-heading">
+          <h3>Disease associations
+            <span style="font-weight:400;font-size:0.8rem;margin-left:8px;">
+              Showing top {{ ot.disease_rows|length }} of {{ ot.total_disease_count }} total
+            </span>
+          </h3>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Disease</th>
+                <th>Therapeutic areas</th>
+                <th>Association score</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in ot.disease_rows %}
+                <tr>
+                  <td>
+                    <a href="{{ row.ot_disease_url }}" target="_blank" rel="noopener">
+                      {{ row.disease_name }}
+                    </a>
+                  </td>
+                  <td style="color:var(--muted);font-size:0.8rem;">{{ row.therapeutic_areas }}</td>
+                  <td>
+                    <span class="ot-score-bar-shell">
+                      <span class="ot-score-bar-fill" style="width:{{ row.score_pct }}%;"></span>
+                    </span>
+                    <span style="margin-left:8px;font-size:0.82rem;">{{ row.score }}</span>
+                  </td>
+                  <td></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+
+      {% if ot.drug_rows %}
+        <div class="panel-heading compact-heading">
+          <h3>Known drugs
+            <span style="font-weight:400;font-size:0.8rem;margin-left:8px;">
+              {{ ot.total_drug_count }} total drug-target interactions
+            </span>
+          </h3>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Drug</th>
+                <th>Type</th>
+                <th>Phase</th>
+                <th>Mechanism</th>
+                <th>Indication</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in ot.drug_rows %}
+                {% set phase_css = {
+                  'Approved': 'phase-approved',
+                  'Phase III': 'phase-3',
+                  'Phase II': 'phase-2',
+                  'Phase I': 'phase-1'
+                }.get(row.phase_label, 'phase-unknown') %}
+                <tr>
+                  <td><strong>{{ row.drug_name }}</strong></td>
+                  <td style="font-size:0.8rem;color:var(--muted);">{{ row.drug_type }}</td>
+                  <td>
+                    <span class="drug-phase-badge {{ phase_css }}">{{ row.phase_label }}</span>
+                  </td>
+                  <td style="font-size:0.8rem;">{{ row.mechanism or "—" }}</td>
+                  <td style="font-size:0.8rem;color:var(--muted);">{{ row.indication }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+
+      {% if ot.pathways %}
+        <div class="panel-heading compact-heading"><h3>Pathway memberships</h3></div>
+        <div class="ot-pathway-list">
+          {% for pw in ot.pathways %}
+            <div class="ot-pathway-item">
+              {{ pw.name }}
+              {% if pw.top_level %}<small>{{ pw.top_level }}</small>{% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  </div>{# /tabpanel-dis #}
+
+  {# Sequence data tables are always visible below all tabs #}
+  <div class="report-section-divider section-sequence">
+    <h2>&#x1F4C4; Sequence Data Tables</h2>
+  </div>
+
+  <section class="panel saveable-panel" id="sec-metrics" data-panel-title="Physicochemical Metrics">
+    <div class="panel-heading">
+      <h2>Wild-type vs mutant physicochemical metrics <span class="annot-badge annot-badge-seq">Sequence</span></h2>
+      <p>Delta bars show sequence-wide physicochemical shifts introduced by the substitution. Positive bars indicate increase; negative bars indicate decrease.</p>
+    </div>
+    <div class="metric-plot">
+      {% for metric in report.metric_plot %}
+        <div class="metric-row">
+          <span class="metric-name">{{ metric.label }}</span>
+          <div class="metric-bar-shell">
+            <div class="metric-bar metric-{{ metric.direction }}" style="width: {{ metric.width_pct }}%;"></div>
+          </div>
+          <span class="metric-delta">{{ metric.display_delta }}</span>
+        </div>
+      {% endfor %}
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Wild type</th>
+            <th>Mutant</th>
+            <th>Delta</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for metric in report.metric_deltas %}
+            <tr>
+              <td>{{ metric.label }}</td>
+              <td>{{ metric.wild_type if metric.wild_type is not none else "Unavailable" }}</td>
+              <td>{{ metric.mutant if metric.mutant is not none else "Unavailable" }}</td>
+              <td>{{ "%.3f"|format(metric.delta) if metric.delta is not none else "Unavailable" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  {% if report.evidence_rows %}
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>Evidence lollipop and evidence table <span class="annot-badge annot-badge-seq">Sequence</span></h2>
+        <p>Each point represents a residue-linked evidence row from curated features or external public datasets.</p>
+      </div>
+      <div class="evidence-track">
+        <div class="evidence-baseline"></div>
+        {% for point in report.evidence_plot %}
+          <div
+            class="evidence-point {% if point.hit_variant_site %}hit-variant{% endif %}"
+            style="left: {{ point.left_pct }}%;"
+            title="{{ point.source }}: {{ point.label }}"
+          ></div>
+        {% endfor %}
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th>Label</th>
+              <th>Position</th>
+              <th>Summary</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in report.evidence_rows %}
+              <tr>
+                <td>{{ row.source }}</td>
+                <td>{{ row.label }}</td>
+                <td>{{ row.position }}</td>
+                <td>{{ row.summary }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if report.interval_features or report.site_features %}
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>Feature tables <span class="annot-badge annot-badge-seq">Sequence</span></h2>
+        <p>The report keeps interval features and exact-site features separate so they can drive both tables and figures.</p>
+      </div>
+      {% if report.interval_features %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Type</th>
+                <th>Label</th>
+                <th>Coordinates</th>
+                <th>Variant overlap</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in report.interval_features %}
+                <tr>
+                  <td>{{ row.source }}</td>
+                  <td>{{ row.type }}</td>
+                  <td>{{ row.label }}</td>
+                  <td>{{ row.start }}-{{ row.end }}</td>
+                  <td>{{ "yes" if row.variant_hit else "no" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+      {% if report.site_features %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Type</th>
+                <th>Label</th>
+                <th>Position</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in report.site_features %}
+                <tr>
+                  <td>{{ row.source }}</td>
+                  <td>{{ row.type }}</td>
+                  <td>{{ row.label }}</td>
+                  <td>{{ row.position }}</td>
+                  <td>{{ row.evidence or "Unavailable" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if report.supplementary_predictor_tables %}
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>Supplementary predictor tables</h2>
+        <p>Tabular outputs are preserved from the underlying true-analysis wrappers for downstream inspection.</p>
+      </div>
+      {% for table in report.supplementary_predictor_tables %}
+        <div class="table-wrap predictor-table">
+          <h3>{{ table.title }}</h3>
+          <table>
+            <thead>
+              <tr>
+                {% for column in table.columns %}
+                  <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in table.rows[:40] %}
+                <tr>
+                  {% for column in table.columns %}
+                    <td>{{ row[column] }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endfor %}
+    </section>
+  {% endif %}
+
+  {# ── Analysis Pipeline Coverage ─────────────────────────────── #}
+  <section class="panel toolkit-panel">
+    <div class="panel-heading">
+      <h2>Analysis pipeline</h2>
+      <p>Every report runs this curated set of sequence-based predictors, databases, and structure sources.</p>
+    </div>
+    <div class="toolkit-grid">
+
+      <div class="toolkit-group">
+        <p class="toolkit-group-label">Sequence &amp; Prediction</p>
+        <div class="toolkit-cards">
+          <div class="tool-card tool-card-seq">
+            <span class="tool-icon">🧬</span>
+            <span class="tool-name">UniProt</span>
+            <span class="tool-desc">Canonical sequence, features, cross-refs</span>
+          </div>
+          <div class="tool-card tool-card-seq">
+            <span class="tool-icon">🌀</span>
+            <span class="tool-name">PSIPRED</span>
+            <span class="tool-desc">Secondary structure prediction</span>
+          </div>
+          <div class="tool-card tool-card-seq">
+            <span class="tool-icon">💧</span>
+            <span class="tool-name">DMVFL-RSA</span>
+            <span class="tool-desc">Solvent accessibility (RSA / ASA)</span>
+          </div>
+          <div class="tool-card tool-card-seq">
+            <span class="tool-icon">🔗</span>
+            <span class="tool-name">NetSurfP-3</span>
+            <span class="tool-desc">SS, RSA, disorder, backbone angles</span>
+          </div>
+          <div class="tool-card tool-card-seq">
+            <span class="tool-icon">📐</span>
+            <span class="tool-name">BLOSUM62</span>
+            <span class="tool-desc">ΔΔG stability &amp; SIFT-proxy scoring</span>
+          </div>
+          <div class="tool-card tool-card-seq">
+            <span class="tool-icon">🔍</span>
+            <span class="tool-name">HMMER</span>
+            <span class="tool-desc">Primate conservation &amp; homology</span>
+          </div>
+          <div class="tool-card tool-card-seq">
+            <span class="tool-icon">🌳</span>
+            <span class="tool-name">Ensembl</span>
+            <span class="tool-desc">Orthologues, genomic mapping, exons</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolkit-group">
+        <p class="toolkit-group-label">Structure Sources</p>
+        <div class="toolkit-cards">
+          <div class="tool-card tool-card-str">
+            <span class="tool-icon">🏗️</span>
+            <span class="tool-name">AlphaFold EBI</span>
+            <span class="tool-desc">pLDDT confidence &amp; AlphaMissense</span>
+          </div>
+          <div class="tool-card tool-card-str">
+            <span class="tool-icon">🔬</span>
+            <span class="tool-name">RCSB PDB</span>
+            <span class="tool-desc">Experimental X-ray, cryo-EM, NMR</span>
+          </div>
+          <div class="tool-card tool-card-str">
+            <span class="tool-icon">🧊</span>
+            <span class="tool-name">3Dmol.js</span>
+            <span class="tool-desc">Interactive inline 3D viewer</span>
+          </div>
+          <div class="tool-card tool-card-str">
+            <span class="tool-icon">🌊</span>
+            <span class="tool-name">Amphipathic analysis</span>
+            <span class="tool-desc">Eisenberg μH helix moment detection</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolkit-group">
+        <p class="toolkit-group-label">Disease &amp; Functional Databases</p>
+        <div class="toolkit-cards">
+          <div class="tool-card tool-card-dis">
+            <span class="tool-icon">🫀</span>
+            <span class="tool-name">Human Protein Atlas</span>
+            <span class="tool-desc">Tissue expression, localisation, disease</span>
+          </div>
+          <div class="tool-card tool-card-dis">
+            <span class="tool-icon">🎯</span>
+            <span class="tool-name">Open Targets</span>
+            <span class="tool-desc">Disease associations, drugs, pathways</span>
+          </div>
+          <div class="tool-card tool-card-dis">
+            <span class="tool-icon">🧪</span>
+            <span class="tool-name">AlphaMissense</span>
+            <span class="tool-desc">Pathogenicity score for missense variants</span>
+          </div>
+          <div class="tool-card tool-card-dis">
+            <span class="tool-icon">🗺️</span>
+            <span class="tool-name">NCBI Datasets</span>
+            <span class="tool-desc">Transcript &amp; chromosomal context</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  {# ── Back-to-top button ──────────────────────────────────────── #}
+  <button id="back-to-top" aria-label="Back to top" title="Back to top">↑</button>
+
+  <script>
+    (function () {
+
+      /* ── 1. Report tab switching ──────────────────────────────────── */
+      const tabBtns = document.querySelectorAll(".report-tab[data-tab]");
+      const tabPanels = document.querySelectorAll(".report-tabpanel");
+
+      function activateTab(key) {
+        tabBtns.forEach(function (btn) {
+          const active = btn.dataset.tab === key;
+          btn.classList.toggle("active", active);
+          btn.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        tabPanels.forEach(function (panel) {
+          const active = panel.id === "tabpanel-" + key;
+          panel.classList.toggle("hidden", !active);
+        });
+      }
+
+      tabBtns.forEach(function (btn) {
+        btn.addEventListener("click", function () { activateTab(btn.dataset.tab); });
+      });
+
+      /* ── 2. Inject "📷 Save" button into each saveable panel ─────── */
+      document.querySelectorAll(".saveable-panel").forEach(function (section) {
+        const title = section.dataset.panelTitle || section.id || "panel";
+        const heading = section.querySelector(".panel-heading");
+        if (!heading) return;
+        const saveBtn = document.createElement("button");
+        saveBtn.className = "panel-save-btn";
+        saveBtn.title = "Save as PNG image";
+        saveBtn.innerHTML = "📷 Save";
+        saveBtn.addEventListener("click", function () { capturePanel(section, title); });
+        heading.appendChild(saveBtn);
+      });
+
+      /* ── 3. Capture single panel as PNG ──────────────────────────── */
+      function capturePanel(el, title) {
+        if (typeof html2canvas === "undefined") {
+          alert("Image capture library not loaded yet. Please wait a moment and try again.");
+          return;
+        }
+        const saveBtn = el.querySelector(".panel-save-btn");
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = "⏳ …"; }
+        html2canvas(el, { backgroundColor: "#ffffff", scale: 2, useCORS: true })
+          .then(function (canvas) {
+            const link = document.createElement("a");
+            link.download = title.replace(/\s+/g, "_") + ".png";
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+          })
+          .finally(function () {
+            if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = "📷 Save"; }
+          });
+      }
+
+      /* ── 4. Download All ─────────────────────────────────────────── */
+      document.getElementById("tab-download-all").addEventListener("click", async function () {
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = "⏳ Preparing…";
+
+        try {
+          if (typeof JSZip === "undefined" || typeof html2canvas === "undefined") {
+            alert("Required libraries not loaded. Please wait a moment and try again.");
+            btn.disabled = false; btn.innerHTML = "📥 Download All";
+            return;
+          }
+
+          const zip = new JSZip();
+          const imgFolder = zip.folder("images");
+          const panels = document.querySelectorAll(".saveable-panel");
+
+          // Show all tab panels temporarily for capture
+          const hidden = [];
+          document.querySelectorAll(".report-tabpanel.hidden").forEach(function (p) {
+            hidden.push(p);
+            p.classList.remove("hidden");
+            p.style.display = "block";
+          });
+
+          for (let i = 0; i < panels.length; i++) {
+            const section = panels[i];
+            const title = section.dataset.panelTitle || section.id || ("panel_" + i);
+            btn.innerHTML = "⏳ " + (i + 1) + "/" + panels.length;
+            await new Promise(function (resolve, reject) {
+              html2canvas(section, { backgroundColor: "#ffffff", scale: 2, useCORS: true })
+                .then(function (canvas) {
+                  canvas.toBlob(function (blob) {
+                    imgFolder.file(title.replace(/\s+/g, "_") + ".png", blob);
+                    resolve();
+                  }, "image/png");
+                })
+                .catch(reject);
+            });
+          }
+
+          // Restore hidden panels
+          hidden.forEach(function (p) {
+            p.classList.add("hidden");
+            p.style.display = "";
+          });
+
+          // Add data download links as a README
+          const dataLinks = [
+            "report.json  →  " + window.location.href.replace("/report", "/report.json"),
+            "report.csv   →  " + window.location.href.replace("/report", "/report.csv"),
+            "report.docx  →  " + window.location.href.replace("/report", "/report.docx"),
+          ].join("\n");
+          zip.file("README.txt", "Protein Analysis Panel Images\n\nData files available at:\n" + dataLinks + "\n");
+
+          const content = await zip.generateAsync({ type: "blob" });
+          const url = URL.createObjectURL(content);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "protein_analysis_panels.zip";
+          a.click();
+          URL.revokeObjectURL(url);
+        } catch (err) {
+          console.error(err);
+          alert("Failed to create ZIP: " + err.message);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = "📥 Download All";
+        }
+      });
+
+      /* ── 5. Phylogenetic tree view tabs ──────────────────────────── */
+      {% if report.phylogenetic_panel and report.phylogenetic_panel.tree_views %}
+      (function () {
+        const tabs = document.querySelectorAll("[data-tree-view-trigger]");
+        const panels = document.querySelectorAll("[data-tree-view-panel]");
+        if (!tabs.length || !panels.length) return;
+        function activateView(key) {
+          tabs.forEach(tab => {
+            const active = tab.dataset.treeViewTrigger === key;
+            tab.classList.toggle("is-active", active);
+            tab.setAttribute("aria-pressed", active ? "true" : "false");
+          });
+          panels.forEach(panel => {
+            panel.classList.toggle("is-active", panel.dataset.treeViewPanel === key);
+          });
+        }
+        tabs.forEach(tab => tab.addEventListener("click", () => activateView(tab.dataset.treeViewTrigger)));
+      }());
+      {% endif %}
+
+      /* ── 6. Back to top ──────────────────────────────────────────── */
+      const backBtn = document.getElementById("back-to-top");
+      if (backBtn) {
+        window.addEventListener("scroll", function () {
+          backBtn.classList.toggle("visible", window.scrollY > 400);
+        });
+        backBtn.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+      }
+
+    }());
+  </script>
+{% endblock %}

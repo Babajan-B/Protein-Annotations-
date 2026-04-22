@@ -1,0 +1,424 @@
+{% extends "base.html" %}
+
+{% block title %}Structural Annotations{% endblock %}
+
+{% block content %}
+  <section class="panel action-bar">
+    <div>
+      <h2>Protein structural annotations</h2>
+      <p>AlphaFold confidence, secondary structure, solvent accessibility, and experimental PDB evidence for {{ report.variant.short_notation }}.</p>
+    </div>
+    <div class="action-links">
+      <a href="{{ url_for('main.report_view', **query_args) }}">Back to report</a>
+      <a href="{{ url_for('main.structure_annotations_csv', **query_args) }}">Residue CSV</a>
+      <a href="{{ url_for('main.report_json', **query_args) }}">JSON export</a>
+      <a href="{{ url_for('main.index', **query_args) }}">Edit query</a>
+    </div>
+  </section>
+
+  {# ------------------------------------------------------------------ #}
+  {# Structural verdict card                                              #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.structural_verdict %}
+    <section class="panel verdict-panel">
+      <div class="panel-heading">
+        <h2>Structural context verdict</h2>
+        <p>Combined view of secondary structure and solvent accessibility at the variant site.</p>
+      </div>
+      <div class="verdict-card verdict-ss-{{ report.structural_verdict.ss_class }} verdict-rsa-{{ report.structural_verdict.rsa_class }}">
+        <p class="structure-kicker">Integrated structural assessment</p>
+        <p class="verdict-sentence">{{ report.structural_verdict.verdict_sentence }}</p>
+        <div class="verdict-pills">
+          {% for part in report.structural_verdict.parts %}
+            <span class="verdict-pill">{{ part }}</span>
+          {% endfor %}
+          {% if report.structural_verdict.domain_context %}
+            <span class="verdict-pill verdict-pill-domain">Domain: {{ report.structural_verdict.domain_context }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if report.amphipathic_panel %}
+        <div class="amphipathic-card">
+          <p class="structure-kicker">Amphipathic helix detected</p>
+          <p class="amphipathic-summary">{{ report.amphipathic_panel.summary }}</p>
+          <div class="amphipathic-stats">
+            <div class="amphi-stat">
+              <span>Segment</span>
+              <strong>{{ report.amphipathic_panel.segment_start }}–{{ report.amphipathic_panel.segment_end }}</strong>
+            </div>
+            <div class="amphi-stat">
+              <span>Length</span>
+              <strong>{{ report.amphipathic_panel.segment_length }} aa</strong>
+            </div>
+            <div class="amphi-stat">
+              <span>μH</span>
+              <strong>{{ report.amphipathic_panel.hydrophobic_moment }}</strong>
+            </div>
+            <div class="amphi-stat">
+              <span>Character</span>
+              <strong>{{ report.amphipathic_panel.interpretation | title }}</strong>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# AlphaFold pLDDT panel                                               #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.alphafold_panel %}
+    {% set af = report.alphafold_panel %}
+    <section class="panel alphafold-panel">
+      <div class="panel-heading">
+        <h2>AlphaFold2 structural confidence — {{ af.entry_id }}</h2>
+        <p>
+          Per-residue pLDDT scores from the AlphaFold EBI database.
+          Model date: {{ af.model_date or "unknown" }}.
+          UniProt coverage: residues {{ af.uniprot_start }}–{{ af.uniprot_end }}.
+          <a href="{{ af.viewer_url }}" target="_blank" rel="noopener">Open in AlphaFold viewer ↗</a>
+        </p>
+      </div>
+
+      {% if af.plddt_available %}
+        <div class="af-hero">
+          {# Variant site spotlight #}
+          <article class="af-spotlight {% if af.variant_row %}{{ af.variant_row.plddt_class }}{% endif %}">
+            <p class="structure-kicker">Variant-site confidence</p>
+            {% if af.variant_row %}
+              <h3>{{ af.variant_row.plddt_label }}</h3>
+              <p class="structure-lede">
+                Position {{ report.variant.position }} has a pLDDT score of
+                <strong>{{ af.variant_row.plddt }}</strong>,
+                classified as <strong>{{ af.variant_row.plddt_label }}</strong>.
+              </p>
+            {% else %}
+              <h3>Position not modelled</h3>
+              <p class="structure-lede">The variant site falls outside the AlphaFold model range.</p>
+            {% endif %}
+
+            {% if af.alphamissense %}
+              <div class="am-badge {{ af.alphamissense.class_name }}">
+                <span class="am-kicker">AlphaMissense</span>
+                <strong class="am-label">{{ af.alphamissense.label }}</strong>
+                <span class="am-score">score {{ af.alphamissense.score }}</span>
+              </div>
+            {% endif %}
+          </article>
+
+          {# Confidence distribution #}
+          <div class="af-confidence-grid">
+            {% for card in af.confidence_cards %}
+              <div class="af-conf-card {{ card.class_name }}">
+                <span class="af-conf-label">{{ card.label }}</span>
+                <strong class="af-conf-count">{{ card.count }}</strong>
+                <small class="af-conf-pct">{{ card.percent }}%</small>
+                <div class="af-conf-swatch" style="background: {{ card.color }};"></div>
+              </div>
+            {% endfor %}
+            <div class="af-conf-card af-conf-mean">
+              <span class="af-conf-label">Mean pLDDT</span>
+              <strong class="af-conf-count {{ af.mean_plddt_class }}">{{ af.mean_plddt }}</strong>
+              <small class="af-conf-pct">{{ af.mean_plddt_label }}</small>
+            </div>
+          </div>
+        </div>
+
+        {# pLDDT colour strip #}
+        <div class="structure-strip">
+          <div class="structure-strip-header">
+            <span>Residue {{ af.uniprot_start }}</span>
+            <span>AlphaFold pLDDT confidence track</span>
+            <span>Residue {{ af.uniprot_end }}</span>
+          </div>
+          <div class="structure-strip-track">
+            <div class="structure-variant-marker" style="left: {{ ((report.variant.position - 1) / report.protein.length * 100) | round(3) }}%;"></div>
+            {% for seg in af.segments %}
+              <div
+                class="plddt-segment {{ seg.class_name }}"
+                style="left: {{ seg.left_pct }}%; width: {{ seg.width_pct }}%;"
+                title="{{ seg.label }} {{ seg.start }}-{{ seg.end }}"
+              ></div>
+            {% endfor %}
+          </div>
+          <div class="plddt-legend">
+            {% for _, label, css, color in [
+              (90, "Very high (>90)", "plddt-very-high", "#0053D6"),
+              (70, "High (70–90)",    "plddt-high",      "#65CBF3"),
+              (50, "Low (50–70)",     "plddt-low",       "#FFDB13"),
+              (0,  "Very low (<50)",  "plddt-very-low",  "#FF7D45")
+            ] %}
+              <span class="plddt-legend-item">
+                <span class="plddt-legend-swatch" style="background: {{ color }};"></span>
+                {{ label }}
+              </span>
+            {% endfor %}
+          </div>
+        </div>
+
+      {% else %}
+        <div class="alert alert-note">
+          <p>AlphaFold model metadata was retrieved but per-residue pLDDT data could not be downloaded.
+             <a href="{{ af.viewer_url }}" target="_blank" rel="noopener">View the entry directly ↗</a></p>
+        </div>
+      {% endif %}
+    </section>
+
+  {% else %}
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>AlphaFold2 structural confidence</h2>
+        <p>No AlphaFold model was found for this protein accession in the EBI database.</p>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# Secondary structure panel (PSIPRED)                                 #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.secondary_structure_panel %}
+    <section class="panel structure-panel structure-page-panel">
+      <div class="panel-heading">
+        <h2>{{ report.protein.gene_symbol or report.protein.entry_name }} — PSIPRED secondary structure</h2>
+        <p>{{ report.variant.short_notation }} mapped onto the full-length PSIPRED assignment.</p>
+      </div>
+      <div class="structure-hero">
+        <article class="structure-spotlight state-{{ report.secondary_structure_panel.variant_row.class_name }}">
+          <p class="structure-kicker">Variant-site structure</p>
+          <h3>{{ report.secondary_structure_panel.variant_row.state }}</h3>
+          <p class="structure-lede">
+            Position {{ report.secondary_structure_panel.variant_row.position }} carries amino acid
+            {{ report.secondary_structure_panel.variant_row.aa }} and is predicted to adopt
+            {{ report.secondary_structure_panel.variant_row.state | lower }}.
+          </p>
+          <div class="probability-grid">
+            {% for item in report.secondary_structure_panel.probability_cards %}
+              <div class="probability-card state-{{ item.class_name }}">
+                <span>{{ item.label }}</span>
+                <strong>{{ item.value }}%</strong>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+        <div class="structure-summary">
+          <div class="structure-count-grid">
+            {% for card in report.secondary_structure_panel.state_cards %}
+              <article class="state-summary-card state-{{ card.class_name }}">
+                <span class="state-code">{{ card.code }}</span>
+                <strong>{{ card.label }}</strong>
+                <span>{{ card.count }} residues</span>
+                <small>{{ card.percent }}%</small>
+              </article>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="structure-strip">
+        <div class="structure-strip-header">
+          <span>Residue 1</span>
+          <span>Full-length assignment</span>
+          <span>Residue {{ report.protein.length }}</span>
+        </div>
+        <div class="structure-strip-track">
+          <div class="structure-variant-marker" style="left: {{ report.secondary_structure_panel.variant_pct }}%;"></div>
+          {% for segment in report.secondary_structure_panel.segments %}
+            <div
+              class="structure-segment state-{{ segment.class_name }}"
+              style="left: {{ segment.left_pct }}%; width: {{ segment.width_pct }}%;"
+              title="{{ segment.label }} {{ segment.start }}-{{ segment.end }}"
+            >
+              {% if segment.width_pct > 7 %}
+                <span>{{ segment.state_code }}</span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>Full-length secondary structure diagram</h2>
+        <p>PDBsum-style layout: helices as springs, strands as arrows, coils as lines. Each amino acid is shown within its predicted structural element.</p>
+      </div>
+      <div class="ss-diagram-legend">
+        <span class="ss-legend-item"><span class="ss-legend-shape ss-legend-helix"></span> Alpha helix</span>
+        <span class="ss-legend-item"><span class="ss-legend-shape ss-legend-strand"></span> Beta strand</span>
+        <span class="ss-legend-item"><span class="ss-legend-shape ss-legend-coil"></span> Coil / Loop</span>
+        <span class="ss-legend-item"><span class="ss-legend-shape ss-legend-variant"></span> Variant site</span>
+      </div>
+      <div class="ss-diagram">
+        {% for line in report.secondary_structure_panel.diagram_rows %}
+          <div class="ss-diagram-line">
+            <span class="ss-line-label ss-line-start">{{ line.start }}</span>
+            <div class="ss-diagram-row">
+              {% for seg in line.segments %}
+                <div class="ss-seg ss-{{ seg.class_name }}" title="{{ seg.label }} ({{ seg.length }} residues)">
+                  {% for r in seg.residues %}
+                    <div class="ss-res {% if r.is_variant_site %}ss-variant{% endif %}" title="{{ r.position }} {{ r.aa }} — {{ r.state }} ({{ r.confidence_pct }}%)">
+                      <span class="ss-aa">{{ r.aa }}</span>
+                      {% if r.position % 10 == 0 %}
+                        <span class="ss-pos-tick">{{ r.position }}</span>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endfor %}
+            </div>
+            <span class="ss-line-label ss-line-end">{{ line.end }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# PDB experimental structure panel                                    #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.pdb_panel %}
+    {% set pdb = report.pdb_panel %}
+    <section class="panel pdb-panel">
+      <div class="panel-heading">
+        <h2>Experimental PDB structures</h2>
+        <p>
+          {{ pdb.total_count }} PDB entr{{ "y" if pdb.total_count == 1 else "ies" }} found via UniProt cross-references.
+          {% if pdb.variant_covered_count > 0 %}
+            <strong>{{ pdb.variant_covered_count }}</strong> cover the variant position.
+          {% else %}
+            None of the deposited structures cover position {{ report.variant.position }}.
+          {% endif %}
+        </p>
+      </div>
+
+      {% if pdb.best_entry %}
+        {% set b = pdb.best_entry %}
+        <div class="pdb-best-card">
+          <p class="structure-kicker">Best experimental structure covering the variant</p>
+          <div class="pdb-best-row">
+            <div class="pdb-best-id">
+              <a href="{{ b.pdb_url }}" target="_blank" rel="noopener">{{ b.pdb_id }}</a>
+            </div>
+            <div class="pdb-best-meta">
+              <span>{{ b.method }}</span>
+              {% if b.resolution %}<span>{{ b.resolution }}</span>{% endif %}
+              {% if b.chain %}<span>Chain {{ b.chain }}</span>{% endif %}
+              {% if b.residue_start and b.residue_end %}
+                <span>Residues {{ b.residue_start }}–{{ b.residue_end }}</span>
+              {% endif %}
+            </div>
+            <a class="pdb-viewer-link" href="{{ b.viewer_url }}" target="_blank" rel="noopener">
+              View 3D structure ↗
+            </a>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>PDB ID</th>
+              <th>Method</th>
+              <th>Resolution</th>
+              <th>Chain</th>
+              <th>Residue range</th>
+              <th>Covers variant</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in pdb.entries %}
+              <tr {% if entry.covers_variant %}class="pdb-row-covering"{% endif %}>
+                <td><a href="{{ entry.pdb_url }}" target="_blank" rel="noopener">{{ entry.pdb_id }}</a></td>
+                <td>{{ entry.method or "—" }}</td>
+                <td>{{ entry.resolution or "—" }}</td>
+                <td>{{ entry.chain or "—" }}</td>
+                <td>
+                  {% if entry.residue_start and entry.residue_end %}
+                    {{ entry.residue_start }}–{{ entry.residue_end }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td>{{ "Yes" if entry.covers_variant else "No" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  {% else %}
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>Experimental PDB structures</h2>
+        <p>No PDB cross-references were retrieved for this protein accession.</p>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ------------------------------------------------------------------ #}
+  {# Structural feature tables (interval + site features)                #}
+  {# ------------------------------------------------------------------ #}
+  {% if report.structure_interval_features or report.structure_site_features %}
+    <section class="panel">
+      <div class="panel-heading">
+        <h2>Structural feature tables</h2>
+        <p>Structure-category interval and site features merged from active predictors.</p>
+      </div>
+      {% if report.structure_interval_features %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Type</th>
+                <th>Label</th>
+                <th>Coordinates</th>
+                <th>Variant overlap</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in report.structure_interval_features %}
+                <tr>
+                  <td>{{ row.source }}</td>
+                  <td>{{ row.type }}</td>
+                  <td>{{ row.label }}</td>
+                  <td>{{ row.start }}-{{ row.end }}</td>
+                  <td>{{ "Yes" if row.variant_hit else "No" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+      {% if report.structure_site_features %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Source</th>
+                <th>Type</th>
+                <th>Label</th>
+                <th>Position</th>
+                <th>Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in report.structure_site_features %}
+                <tr>
+                  <td>{{ row.source }}</td>
+                  <td>{{ row.type }}</td>
+                  <td>{{ row.label }}</td>
+                  <td>{{ row.position }}</td>
+                  <td>{{ row.evidence or "Unavailable" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+{% endblock %}
