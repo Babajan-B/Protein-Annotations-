@@ -4,14 +4,60 @@
 
 {% block content %}
 
-  {# ── Hero form ────────────────────────────────────────────────── #}
+  <section class="panel home-intro-panel">
+    <div class="home-intro-grid">
+      <div class="home-intro-copy">
+        <p class="section-label">Platform Scope</p>
+        <h2>From primary sequence to structural and functional interpretation</h2>
+        <p>
+          This platform is designed as an academic-style protein annotation portal. It starts from a submitted
+          human protein and missense substitution, then assembles sequence statistics, residue-context analysis,
+          AlphaFold confidence, PDB cross-references, conservation, transcript mapping, and disease-linked evidence
+          into a single visual report.
+        </p>
+        <p>
+          The goal is not only to compute annotations, but to present them in an order that matches how researchers
+          actually inspect a candidate variant: identify the protein, validate the substitution, locate it in sequence
+          and structure, then evaluate functional and disease relevance.
+        </p>
+      </div>
+      <aside class="home-intro-aside">
+        <p class="section-label">Core Modules</p>
+        <dl class="home-metric-list">
+          <dt>Sequence</dt><dd>Canonical protein resolution, local residue context, physicochemical deltas</dd>
+          <dt>Structure</dt><dd>AlphaFold confidence, experimental PDB cross-references, residue-level structural views</dd>
+          <dt>Variation</dt><dd>Missense parsing, conservation, genomic mapping, transcript/exon placement</dd>
+          <dt>Evidence</dt><dd>Protein Atlas, Open Targets, curated annotation aggregation, exportable reports</dd>
+        </dl>
+      </aside>
+    </div>
+  </section>
+
   <section class="panel panel-form hero-form-panel">
-    <div class="hero-form-header">
-      <h2>Analyse a human missense variant</h2>
-      <p class="hero-form-sub">
-        Enter a human protein and a missense substitution to generate a full structural,
-        physicochemical, and disease-context report.
-      </p>
+    <div class="hero-form-layout">
+      <div class="hero-form-header">
+        <p class="section-label">Analysis Input</p>
+        <h2>Submit a human protein and missense variant</h2>
+        <p class="hero-form-sub">
+          Generate a structured bioinformatics report focused on protein sequence annotation, structural confidence,
+          and functional interpretation of a single amino-acid substitution.
+        </p>
+      </div>
+
+      <div class="analysis-steps">
+        <article>
+          <strong>1. Resolve target protein</strong>
+          <span>Map the query to a canonical human protein record and sequence.</span>
+        </article>
+        <article>
+          <strong>2. Annotate residue context</strong>
+          <span>Assess sequence neighborhood, feature overlap, conservation, and structure-linked context.</span>
+        </article>
+        <article>
+          <strong>3. Export the dossier</strong>
+          <span>Download PDF, Word, JSON, CSV, and structural annotation outputs.</span>
+        </article>
+      </div>
     </div>
 
     {% if error %}
@@ -53,21 +99,21 @@
         </label>
       </div>
       <div class="form-examples">
-        <span class="example-label">Try:</span>
+        <span class="example-label">Reference examples</span>
         <button type="button" class="example-chip" data-query="TP53" data-variant="R248W">TP53 R248W</button>
         <button type="button" class="example-chip" data-query="BRCA1" data-variant="R1699W">BRCA1 R1699W</button>
         <button type="button" class="example-chip" data-query="EGFR" data-variant="L858R">EGFR L858R</button>
         <button type="button" class="example-chip" data-query="PTEN" data-variant="R130Q">PTEN R130Q</button>
       </div>
-      <button type="submit" class="submit-btn">Generate report →</button>
+      <button type="submit" class="submit-btn">Generate Academic Annotation Report</button>
     </form>
   </section>
 
-  {# ── What this tool analyses ───────────────────────────────────── #}
   <section class="panel capability-panel">
     <div class="panel-heading">
-      <h2>What gets analysed</h2>
-      <p>Every report runs three layers of analysis in a single request.</p>
+      <p class="section-label">Analytical Coverage</p>
+      <h2>What the report is organised to show</h2>
+      <p>The site is structured as an academic annotation workflow rather than a generic dashboard. Each report is grouped into sequence, structure, and evidence layers.</p>
     </div>
 
     <div class="capability-columns">
@@ -133,11 +179,36 @@
     </div>
   </section>
 
-  {# ── Export options ──────────────────────────────────────────── #}
+  <section class="panel methodology-panel">
+    <div class="panel-heading">
+      <p class="section-label">Interpretation Logic</p>
+      <h2>How to read the output</h2>
+      <p>The report is designed for fast interpretation by moving from basic identity and location questions to higher-level structural and disease-context reasoning.</p>
+    </div>
+    <div class="methodology-grid">
+      <article>
+        <span>Layer A</span>
+        <h3>Sequence identity and residue context</h3>
+        <p>Confirm the submitted protein, variant notation, local amino-acid neighborhood, and sequence-wide metric shifts.</p>
+      </article>
+      <article>
+        <span>Layer B</span>
+        <h3>Structure and confidence</h3>
+        <p>Review AlphaFold confidence, predicted accessibility, secondary structure, and any experimental structure coverage.</p>
+      </article>
+      <article>
+        <span>Layer C</span>
+        <h3>Biological and disease evidence</h3>
+        <p>Inspect expression, known disease associations, pathway context, transcript mapping, and linked functional resources.</p>
+      </article>
+    </div>
+  </section>
+
   <section class="panel export-info-panel">
     <div class="panel-heading">
-      <h2>Export formats</h2>
-      <p>Every report is downloadable in multiple formats for publication and downstream analysis.</p>
+      <p class="section-label">Outputs</p>
+      <h2>Publication-ready export formats</h2>
+      <p>Each analysis is prepared for academic reuse, downstream computation, and figure extraction.</p>
     </div>
     <div class="export-format-grid">
       <div class="export-format-card">

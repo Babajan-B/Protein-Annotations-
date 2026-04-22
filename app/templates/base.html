@@ -11,13 +11,41 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
   </head>
   <body>
+    <div class="site-chrome">
+      <div class="site-chrome-inner">
+        <p class="site-kicker">Academic Bioinformatics Workbench</p>
+        <div class="site-chrome-row">
+          <div>
+            <h1 class="site-title">Bioinformatics Protein Sequence/Structural Annotations</h1>
+            <p class="site-summary">
+              A research-oriented workspace for protein variant interpretation, combining sequence features,
+              structural confidence, experimental structure references, and disease-context annotations in a
+              single report.
+            </p>
+          </div>
+          <div class="site-badges">
+            <span>Sequence Annotation</span>
+            <span>Structural Context</span>
+            <span>Functional Evidence</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="page-shell">
       <header class="page-header">
-        <p class="eyebrow">Academic Human Protein Analysis</p>
-        <h1>Protein Mutation Workbench</h1>
+        <div class="page-header-mark">
+          <span class="page-header-index">{% if request.endpoint == "main.index" %}Portal{% else %}Report{% endif %}</span>
+          <span class="page-header-rule"></span>
+        </div>
+        <p class="eyebrow">{% if request.endpoint == "main.index" %}Protein Variant Annotation Portal{% else %}Analytical Report Dossier{% endif %}</p>
+        <h1>{% if request.endpoint == "main.index" %}Research-Grade Protein Annotation and Structural Interpretation{% else %}Integrated Protein Sequence and Structural Annotation Report{% endif %}</h1>
         <p class="lede">
-          Resolve a human protein, validate a missense substitution, and prepare the figures,
-          plots, and tables needed for sequence-first interpretation.
+          {% if request.endpoint == "main.index" %}
+            Start with a human gene symbol, protein identifier, or UniProt accession and generate a structured bioinformatics report spanning sequence interpretation, protein architecture, AlphaFold confidence, PDB evidence, and disease-linked knowledge bases.
+          {% else %}
+            Each report is presented as a structured analytical dossier, designed to make sequence-level signals, structural context, and downstream biological evidence easier to read in one pass.
+          {% endif %}
         </p>
       </header>
       <main class="page-content">
