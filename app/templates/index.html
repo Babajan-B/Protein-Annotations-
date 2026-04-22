@@ -1,248 +1,62 @@
 {% extends "base.html" %}
 
-{% block title %}Protein Mutation Workbench{% endblock %}
+{% block title %}Bioinformatics Protein Sequence/Structural Annotations{% endblock %}
 
 {% block content %}
-
-  <section class="panel home-intro-panel">
-    <div class="home-intro-grid">
-      <div class="home-intro-copy">
-        <p class="section-label">Platform Scope</p>
-        <h2>From primary sequence to structural and functional interpretation</h2>
+  <section class="panel intro-hero-panel">
+    <div class="intro-hero-grid">
+      <div class="intro-hero-copy">
+        <p class="section-label">Introduction</p>
+        <h2>A focused portal for protein sequence and structural annotations</h2>
         <p>
-          This platform is designed as an academic-style protein annotation portal. It starts from a submitted
-          human protein and missense substitution, then assembles sequence statistics, residue-context analysis,
-          AlphaFold confidence, PDB cross-references, conservation, transcript mapping, and disease-linked evidence
-          into a single visual report.
+          This site is designed as an academic bioinformatics interface for interpreting human protein variants.
+          It brings together sequence-derived annotation, structural confidence, experimental structure references,
+          residue-level context, and downstream biological evidence in a format that is easier to inspect than a
+          generic dashboard.
         </p>
         <p>
-          The goal is not only to compute annotations, but to present them in an order that matches how researchers
-          actually inspect a candidate variant: identify the protein, validate the substitution, locate it in sequence
-          and structure, then evaluate functional and disease relevance.
+          The platform is intended to support a practical reading flow: identify the target protein, confirm the
+          amino-acid substitution, place it in sequence and structure, and then evaluate the surrounding biological
+          evidence. The annotations page is where that analysis begins.
         </p>
+        <div class="intro-actions">
+          <a class="intro-primary" href="{{ url_for('main.annotations') }}">Open Annotations Page</a>
+          <a class="intro-secondary" href="{{ url_for('main.annotations', query='TP53', variant='R248W') }}">View Example Query</a>
+        </div>
       </div>
-      <aside class="home-intro-aside">
-        <p class="section-label">Core Modules</p>
+      <aside class="intro-sidecard">
+        <p class="section-label">Included Layers</p>
         <dl class="home-metric-list">
-          <dt>Sequence</dt><dd>Canonical protein resolution, local residue context, physicochemical deltas</dd>
-          <dt>Structure</dt><dd>AlphaFold confidence, experimental PDB cross-references, residue-level structural views</dd>
-          <dt>Variation</dt><dd>Missense parsing, conservation, genomic mapping, transcript/exon placement</dd>
-          <dt>Evidence</dt><dd>Protein Atlas, Open Targets, curated annotation aggregation, exportable reports</dd>
+          <dt>Sequence</dt><dd>Canonical protein resolution, residue context, conservation, and protein architecture</dd>
+          <dt>Structure</dt><dd>AlphaFold confidence, experimental PDB cross-references, and interactive 3D inspection</dd>
+          <dt>Evidence</dt><dd>Protein Atlas, Open Targets, curated annotation aggregation, and export-ready reports</dd>
         </dl>
       </aside>
     </div>
   </section>
 
-  <section class="panel panel-form hero-form-panel">
-    <div class="hero-form-layout">
-      <div class="hero-form-header">
-        <p class="section-label">Analysis Input</p>
-        <h2>Submit a human protein and missense variant</h2>
-        <p class="hero-form-sub">
-          Generate a structured bioinformatics report focused on protein sequence annotation, structural confidence,
-          and functional interpretation of a single amino-acid substitution.
-        </p>
-      </div>
-
-      <div class="analysis-steps">
-        <article>
-          <strong>1. Resolve target protein</strong>
-          <span>Map the query to a canonical human protein record and sequence.</span>
-        </article>
-        <article>
-          <strong>2. Annotate residue context</strong>
-          <span>Assess sequence neighborhood, feature overlap, conservation, and structure-linked context.</span>
-        </article>
-        <article>
-          <strong>3. Export the dossier</strong>
-          <span>Download PDF, Word, JSON, CSV, and structural annotation outputs.</span>
-        </article>
-      </div>
-    </div>
-
-    {% if error %}
-      <div class="alert alert-error">{{ error }}</div>
-    {% endif %}
-
-    <form method="post" action="{{ url_for('main.analyze') }}" class="analysis-form">
-      <div class="form-row-2">
-        <label>
-          <span>Gene symbol, protein name, or UniProt accession</span>
-          <input
-            type="text"
-            name="query"
-            placeholder="TP53  or  BRCA1  or  P04637"
-            value="{{ form_data.query }}"
-            required
-            autofocus
-          >
-        </label>
-        <label>
-          <span>Missense variant</span>
-          <input
-            type="text"
-            name="variant"
-            placeholder="R248W  or  p.Arg248Trp"
-            value="{{ form_data.variant }}"
-            required
-          >
-        </label>
-      </div>
-      <div class="form-row-2 form-row-optional">
-        <label>
-          <span>Position override <span class="optional-tag">optional</span></span>
-          <input type="text" name="position" placeholder="248" value="{{ form_data.position }}">
-        </label>
-        <label>
-          <span>UniProt isoform override <span class="optional-tag">optional</span></span>
-          <input type="text" name="isoform" placeholder="P04637-2" value="{{ form_data.isoform }}">
-        </label>
-      </div>
-      <div class="form-examples">
-        <span class="example-label">Reference examples</span>
-        <button type="button" class="example-chip" data-query="TP53" data-variant="R248W">TP53 R248W</button>
-        <button type="button" class="example-chip" data-query="BRCA1" data-variant="R1699W">BRCA1 R1699W</button>
-        <button type="button" class="example-chip" data-query="EGFR" data-variant="L858R">EGFR L858R</button>
-        <button type="button" class="example-chip" data-query="PTEN" data-variant="R130Q">PTEN R130Q</button>
-      </div>
-      <button type="submit" class="submit-btn">Generate Academic Annotation Report</button>
-    </form>
-  </section>
-
-  <section class="panel capability-panel">
+  <section class="panel intro-overview-panel">
     <div class="panel-heading">
-      <p class="section-label">Analytical Coverage</p>
-      <h2>What the report is organised to show</h2>
-      <p>The site is structured as an academic annotation workflow rather than a generic dashboard. Each report is grouped into sequence, structure, and evidence layers.</p>
-    </div>
-
-    <div class="capability-columns">
-
-      <div class="capability-column cap-col-seq">
-        <div class="cap-col-header">
-          <span class="cap-col-icon">🧬</span>
-          <div>
-            <h3>Sequence Annotations</h3>
-            <p>Residue-level and sequence-wide properties</p>
-          </div>
-        </div>
-        <ul class="cap-list">
-          <li>Canonical human protein resolution via UniProt</li>
-          <li>Missense variant parsing &amp; HGVS normalisation</li>
-          <li>Wild-type vs mutant physicochemical metrics (MW, pI, GRAVY, aromaticity, instability index)</li>
-          <li>Protein architecture — domain &amp; motif track</li>
-          <li>Evidence lollipop from curated annotations</li>
-          <li>Interval and site-level feature tables</li>
-          <li>Chromosome &amp; exon mapping (Ensembl / NCBI)</li>
-          <li>Primate conservation profile</li>
-          <li>Phylogenetic tree view (when available)</li>
-        </ul>
-      </div>
-
-      <div class="capability-column cap-col-str">
-        <div class="cap-col-header">
-          <span class="cap-col-icon">🦴</span>
-          <div>
-            <h3>Structural Annotations</h3>
-            <p>Predicted and experimental 3D context</p>
-          </div>
-        </div>
-        <ul class="cap-list">
-          <li>PSIPRED — secondary structure per residue (helix / strand / coil)</li>
-          <li>DMVFL-RSA — relative &amp; absolute solvent accessibility</li>
-          <li>Integrated structural verdict at the variant site</li>
-          <li>Amphipathic helix detection (Eisenberg μH)</li>
-          <li>Mutation stability prediction (ΔΔG, BLOSUM62, volume, hydrophobicity)</li>
-          <li>AlphaFold2 pLDDT confidence track + AlphaMissense score</li>
-          <li>Experimental PDB cross-references (ranked by coverage &amp; resolution)</li>
-          <li>Inline 3D molecular viewer (3Dmol.js)</li>
-        </ul>
-      </div>
-
-      <div class="capability-column cap-col-dis">
-        <div class="cap-col-header">
-          <span class="cap-col-icon">📊</span>
-          <div>
-            <h3>Disease &amp; Function</h3>
-            <p>Clinical and functional context from public databases</p>
-          </div>
-        </div>
-        <ul class="cap-list">
-          <li>Human Protein Atlas — subcellular localisation, protein class, disease involvement, RNA expression summary</li>
-          <li>Open Targets Platform — disease association scores (top 20), known drugs &amp; clinical trial phase, pathway memberships</li>
-          <li>Genomic location context (chromosome, transcript, exon structure)</li>
-          <li>MaveDB deep mutational scan evidence (when available)</li>
-          <li>InterPro / EBI Proteins curated annotations</li>
-        </ul>
-      </div>
-
-    </div>
-  </section>
-
-  <section class="panel methodology-panel">
-    <div class="panel-heading">
-      <p class="section-label">Interpretation Logic</p>
-      <h2>How to read the output</h2>
-      <p>The report is designed for fast interpretation by moving from basic identity and location questions to higher-level structural and disease-context reasoning.</p>
+      <p class="section-label">Workflow</p>
+      <h2>How the portal is organised</h2>
+      <p>The home page is an introduction only. The actual input form and analysis workflow live on the annotations page.</p>
     </div>
     <div class="methodology-grid">
       <article>
-        <span>Layer A</span>
-        <h3>Sequence identity and residue context</h3>
-        <p>Confirm the submitted protein, variant notation, local amino-acid neighborhood, and sequence-wide metric shifts.</p>
+        <span>Step 1</span>
+        <h3>Open annotations</h3>
+        <p>Move to the dedicated annotations page and enter a protein identifier plus a missense variant.</p>
       </article>
       <article>
-        <span>Layer B</span>
-        <h3>Structure and confidence</h3>
-        <p>Review AlphaFold confidence, predicted accessibility, secondary structure, and any experimental structure coverage.</p>
+        <span>Step 2</span>
+        <h3>Generate the report</h3>
+        <p>Run integrated sequence, structural, and evidence-oriented annotation in a single workflow.</p>
       </article>
       <article>
-        <span>Layer C</span>
-        <h3>Biological and disease evidence</h3>
-        <p>Inspect expression, known disease associations, pathway context, transcript mapping, and linked functional resources.</p>
+        <span>Step 3</span>
+        <h3>Inspect and export</h3>
+        <p>Review the structured report, inspect the 3D viewer, and export the result in publication-friendly formats.</p>
       </article>
     </div>
   </section>
-
-  <section class="panel export-info-panel">
-    <div class="panel-heading">
-      <p class="section-label">Outputs</p>
-      <h2>Publication-ready export formats</h2>
-      <p>Each analysis is prepared for academic reuse, downstream computation, and figure extraction.</p>
-    </div>
-    <div class="export-format-grid">
-      <div class="export-format-card">
-        <span class="ef-icon">📄</span>
-        <strong>Word (.docx)</strong>
-        <p>Full structured report with embedded charts, all tables, and section headings. Ready for direct publication.</p>
-      </div>
-      <div class="export-format-card">
-        <span class="ef-icon">📦</span>
-        <strong>ZIP Bundle</strong>
-        <p>Everything in one archive: Word report, JSON, CSV, and structure annotations CSV.</p>
-      </div>
-      <div class="export-format-card">
-        <span class="ef-icon">📷</span>
-        <strong>Panel images (PNG)</strong>
-        <p>Save any individual analysis panel as a high-resolution PNG, or download all panels as a ZIP.</p>
-      </div>
-      <div class="export-format-card">
-        <span class="ef-icon">{ }</span>
-        <strong>JSON / CSV</strong>
-        <p>Machine-readable full report and structured tables for downstream processing.</p>
-      </div>
-    </div>
-  </section>
-
-  <script>
-    /* Fill example query into form fields */
-    document.querySelectorAll(".example-chip").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        document.querySelector('[name="query"]').value  = btn.dataset.query;
-        document.querySelector('[name="variant"]').value = btn.dataset.variant;
-        document.querySelector('[name="query"]').focus();
-      });
-    });
-  </script>
-
 {% endblock %}

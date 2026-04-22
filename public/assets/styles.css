@@ -271,6 +271,61 @@ body {
   grid-template-columns: 1.55fr 1fr;
 }
 
+.intro-hero-grid,
+.annotations-intro-grid {
+  display: grid;
+  grid-template-columns: 1.45fr 1fr;
+  gap: 24px;
+}
+
+.intro-hero-copy h2,
+.annotations-intro-grid h2 {
+  margin: 0 0 10px;
+  font-family: var(--serif);
+  font-size: clamp(1.7rem, 2.1vw, 2.5rem);
+  line-height: 1.08;
+}
+
+.intro-hero-copy p {
+  color: var(--muted);
+  line-height: 1.76;
+}
+
+.intro-sidecard {
+  border-left: 1px solid rgba(33, 55, 80, 0.12);
+  padding-left: 22px;
+}
+
+.intro-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.intro-primary,
+.intro-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 190px;
+  padding: 13px 18px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.intro-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+  color: #fff;
+}
+
+.intro-secondary {
+  border: 1px solid rgba(33, 55, 80, 0.14);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--accent-strong);
+}
+
 .hero-form-layout {
   grid-template-columns: 1.2fr 0.95fr;
   margin-bottom: 18px;
@@ -2278,6 +2333,8 @@ code {
 @media (max-width: 900px) {
   .site-chrome-row,
   .home-intro-grid,
+  .intro-hero-grid,
+  .annotations-intro-grid,
   .hero-form-layout,
   .methodology-grid {
     grid-template-columns: 1fr;
@@ -2288,6 +2345,13 @@ code {
   }
 
   .home-intro-aside {
+    border-left: 0;
+    border-top: 1px solid rgba(33, 55, 80, 0.12);
+    padding-left: 0;
+    padding-top: 18px;
+  }
+
+  .intro-sidecard {
     border-left: 0;
     border-top: 1px solid rgba(33, 55, 80, 0.12);
     padding-left: 0;

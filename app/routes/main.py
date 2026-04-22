@@ -46,6 +46,11 @@ _FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
 
 @bp.route("/", methods=["GET"])
 def index():
+    return render_template("index.html")
+
+
+@bp.route("/annotations", methods=["GET"])
+def annotations():
     form_data = {
         "query": request.args.get("query", "").strip(),
         "variant": request.args.get("variant", "").strip(),
@@ -53,7 +58,7 @@ def index():
         "isoform": request.args.get("isoform", "").strip(),
     }
     return render_template(
-        "index.html",
+        "annotations.html",
         error=request.args.get("error"),
         form_data=form_data,
         analysis_sections=current_app.config["ANALYSIS_SECTIONS"],
@@ -84,7 +89,7 @@ def report_view():
         report, query_args = _build_report_from_request_args()
         return render_template("result.html", report=report, query_args=query_args)
     except (VariantParseError, ProteinLookupError, AnalysisError, TrueAnalysisError) as exc:
-        return redirect(url_for("main.index", error=str(exc), **_read_form_data(request.args)))
+        return redirect(url_for("main.annotations", error=str(exc), **_read_form_data(request.args)))
 
 
 @bp.route("/structure-annotations", methods=["GET"])
@@ -93,7 +98,7 @@ def structure_annotations_view():
         report, query_args = _build_report_from_request_args()
         return render_template("structure_annotations.html", report=report, query_args=query_args)
     except (VariantParseError, ProteinLookupError, AnalysisError, TrueAnalysisError) as exc:
-        return redirect(url_for("main.index", error=str(exc), **_read_form_data(request.args)))
+        return redirect(url_for("main.annotations", error=str(exc), **_read_form_data(request.args)))
 
 
 @bp.route("/structure-annotations.csv", methods=["GET"])

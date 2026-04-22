@@ -35,13 +35,15 @@
     <div class="page-shell">
       <header class="page-header">
         <div class="page-header-mark">
-          <span class="page-header-index">{% if request.endpoint == "main.index" %}Portal{% else %}Report{% endif %}</span>
+          <span class="page-header-index">{% if request.endpoint == "main.index" %}Home{% elif request.endpoint == "main.annotations" %}Portal{% else %}Report{% endif %}</span>
           <span class="page-header-rule"></span>
         </div>
-        <p class="eyebrow">{% if request.endpoint == "main.index" %}Protein Variant Annotation Portal{% else %}Analytical Report Dossier{% endif %}</p>
-        <h1>{% if request.endpoint == "main.index" %}Research-Grade Protein Annotation and Structural Interpretation{% else %}Integrated Protein Sequence and Structural Annotation Report{% endif %}</h1>
+        <p class="eyebrow">{% if request.endpoint == "main.index" %}Academic Introduction{% elif request.endpoint == "main.annotations" %}Protein Variant Annotation Portal{% else %}Analytical Report Dossier{% endif %}</p>
+        <h1>{% if request.endpoint == "main.index" %}Bioinformatics Protein Sequence/Structural Annotations{% elif request.endpoint == "main.annotations" %}Research-Grade Protein Annotation and Structural Interpretation{% else %}Integrated Protein Sequence and Structural Annotation Report{% endif %}</h1>
         <p class="lede">
           {% if request.endpoint == "main.index" %}
+            This portal introduces the annotation workflow and data layers used throughout the platform. Continue to the annotations page to submit a protein target and generate a structured report.
+          {% elif request.endpoint == "main.annotations" %}
             Start with a human gene symbol, protein identifier, or UniProt accession and generate a structured bioinformatics report spanning sequence interpretation, protein architecture, AlphaFold confidence, PDB evidence, and disease-linked knowledge bases.
           {% else %}
             Each report is presented as a structured analytical dossier, designed to make sequence-level signals, structural context, and downstream biological evidence easier to read in one pass.

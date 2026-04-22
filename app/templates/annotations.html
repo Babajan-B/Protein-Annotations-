@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Protein Annotations Portal{% endblock %}
+
+{% block content %}
+  <section class="panel annotations-intro-panel">
+    <div class="annotations-intro-grid">
+      <div>
+        <p class="section-label">Annotations Page</p>
+        <h2>Submit a human protein and missense variant</h2>
+        <p class="hero-form-sub">
+          Generate a structured bioinformatics report focused on protein sequence annotation, structural confidence,
+          and functional interpretation of a single amino-acid substitution.
+        </p>
+      </div>
+      <div class="analysis-steps">
+        <article>
+          <strong>1. Resolve target protein</strong>
+          <span>Map the query to a canonical human protein record and sequence.</span>
+        </article>
+        <article>
+          <strong>2. Annotate residue context</strong>
+          <span>Assess sequence neighborhood, feature overlap, conservation, and structure-linked context.</span>
+        </article>
+        <article>
+          <strong>3. Export the dossier</strong>
+          <span>Download PDF, Word, JSON, CSV, and structural annotation outputs.</span>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel panel-form hero-form-panel">
+    {% if error %}
+      <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('main.analyze') }}" class="analysis-form">
+      <div class="form-row-2">
+        <label>
+          <span>Gene symbol, protein name, or UniProt accession</span>
+          <input
+            type="text"
+            name="query"
+            placeholder="TP53  or  BRCA1  or  P04637"
+            value="{{ form_data.query }}"
+            required
+            autofocus
+          >
+        </label>
+        <label>
+          <span>Missense variant</span>
+          <input
+            type="text"
+            name="variant"
+            placeholder="R248W  or  p.Arg248Trp"
+            value="{{ form_data.variant }}"
+            required
+          >
+        </label>
+      </div>
+      <div class="form-row-2 form-row-optional">
+        <label>
+          <span>Position override <span class="optional-tag">optional</span></span>
+          <input type="text" name="position" placeholder="248" value="{{ form_data.position }}">
+        </label>
+        <label>
+          <span>UniProt isoform override <span class="optional-tag">optional</span></span>
+          <input type="text" name="isoform" placeholder="P04637-2" value="{{ form_data.isoform }}">
+        </label>
+      </div>
+      <div class="form-examples">
+        <span class="example-label">Reference examples</span>
+        <button type="button" class="example-chip" data-query="TP53" data-variant="R248W">TP53 R248W</button>
+        <button type="button" class="example-chip" data-query="BRCA1" data-variant="R1699W">BRCA1 R1699W</button>
+        <button type="button" class="example-chip" data-query="EGFR" data-variant="L858R">EGFR L858R</button>
+        <button type="button" class="example-chip" data-query="PTEN" data-variant="R130Q">PTEN R130Q</button>
+      </div>
+      <button type="submit" class="submit-btn">Generate Academic Annotation Report</button>
+    </form>
+  </section>
+
+  <script>
+    document.querySelectorAll(".example-chip").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        document.querySelector('[name="query"]').value = btn.dataset.query;
+        document.querySelector('[name="variant"]').value = btn.dataset.variant;
+        document.querySelector('[name="query"]').focus();
+      });
+    });
+  </script>
+{% endblock %}
