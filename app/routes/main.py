@@ -1,8 +1,20 @@
 from __future__ import annotations
 
+from pathlib import Path
 from urllib.parse import urlencode
 
-from flask import Blueprint, Response, current_app, jsonify, make_response, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    Response,
+    current_app,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 
 from app.services.alphafold_lookup import AlphaFoldLookup
 from app.services.analysis import AnalysisError, SequenceAnalysisService
@@ -22,6 +34,7 @@ from app.services.true_analysis import TrueAnalysisError, TrueAnalysisOrchestrat
 from app.services.variant_parser import VariantParseError, parse_missense_variant
 
 bp = Blueprint("main", __name__)
+PUBLIC_ASSETS_DIR = Path(__file__).resolve().parents[2] / "public" / "assets"
 
 _FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="14" fill="#16324f"/>
@@ -51,6 +64,11 @@ def index():
 @bp.route("/favicon.ico", methods=["GET"])
 def favicon():
     return Response(_FAVICON_SVG, mimetype="image/svg+xml")
+
+
+@bp.route("/assets/<path:filename>", methods=["GET"])
+def public_asset(filename: str):
+    return send_from_directory(PUBLIC_ASSETS_DIR, filename)
 
 
 @bp.route("/analyze", methods=["POST"])

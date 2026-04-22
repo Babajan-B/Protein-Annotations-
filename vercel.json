@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "main.py": {
+      "maxDuration": 300,
+      "excludeFiles": "{.git/**,.analysis-cache/**,__pycache__/**,tests/**,envs/**,resources/**,output.json,plan.md,prd.md,CLAUDE.md,DMVFL-RSA-main/save_model/**,DMVFL-RSA-main/Util/database/**}"
+    }
+  }
+}

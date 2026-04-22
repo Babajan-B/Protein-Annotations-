@@ -7,7 +7,10 @@ __pycache__/
 *.pyo
 *.pyd
 .env
+.env.local
+.env.*.local
 .DS_Store
+.vercel/
 app_restart.log
 psitmp*.mtx
 envs/

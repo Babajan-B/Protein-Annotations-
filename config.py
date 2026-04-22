@@ -1,19 +1,35 @@
 from __future__ import annotations
 
 import os
+import tempfile
+
+
+def _is_vercel_environment() -> bool:
+    return os.environ.get("VERCEL") == "1" or bool(os.environ.get("VERCEL_ENV"))
+
+
+def _default_analysis_workdir() -> str:
+    if _is_vercel_environment():
+        return os.path.join(tempfile.gettempdir(), "protein-mutation-workbench")
+    return os.path.join(os.getcwd(), ".analysis-cache")
+
+
+def _default_enabled_predictor_keys() -> str:
+    # Vercel deployments should not assume local bioinformatics binaries or model assets.
+    if _is_vercel_environment():
+        return ""
+    return "psipred"
 
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
     UNIPROT_BASE_URL = os.environ.get("UNIPROT_BASE_URL", "https://rest.uniprot.org")
     ENABLE_CURATED_FALLBACK = os.environ.get("ENABLE_CURATED_FALLBACK", "").lower() in {"1", "true", "yes"}
-    ANALYSIS_WORKDIR = os.environ.get(
-        "ANALYSIS_WORKDIR", os.path.join(os.getcwd(), ".analysis-cache")
-    )
+    ANALYSIS_WORKDIR = os.environ.get("ANALYSIS_WORKDIR", _default_analysis_workdir())
     PREDICTOR_TIMEOUT_SECONDS = float(os.environ.get("PREDICTOR_TIMEOUT_SECONDS", "240"))
     ENABLED_PREDICTOR_KEYS = [
         key.strip()
-        for key in os.environ.get("ENABLED_PREDICTOR_KEYS", "psipred").split(",")
+        for key in os.environ.get("ENABLED_PREDICTOR_KEYS", _default_enabled_predictor_keys()).split(",")
         if key.strip()
     ]
     INTERPRO_API_BASE_URL = os.environ.get("INTERPRO_API_BASE_URL", "https://www.ebi.ac.uk/interpro/api")
